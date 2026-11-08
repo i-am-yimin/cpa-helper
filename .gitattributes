@@ -1,0 +1,4 @@
+.gitattributes text eol=lf
+deploy/** text eol=lf
+.github/workflows/deploy-production.yml text eol=lf
+.github/actionlint.yaml text eol=lf
