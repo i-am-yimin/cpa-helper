@@ -1,0 +1,52 @@
+name: ai-gateway
+
+services:
+  cli-proxy-api:
+    image: ${CLI_PROXY_IMAGE:?set an immutable CLIProxyAPI image}
+    entrypoint: ["/CLIProxyAPI/CLIProxyAPI"]
+    command: ["--config", "/config/config.yaml"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8317:8317"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - /opt/ai-gateway/core:/config
+      - /opt/ai-gateway/auths:/root/.cli-proxy-api
+      - /opt/ai-gateway/logs:/CLIProxyAPI/logs
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  cpa-helper:
+    image: ${CPA_HELPER_IMAGE:?set an immutable CPA-Helper image}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18317:18317"
+    environment:
+      TZ: Asia/Shanghai
+      CPA_HELPER_ADDR: ":18317"
+      CPA_HELPER_DATA_DIR: /app/data
+    volumes:
+      - /opt/ai-gateway/helper:/app/data
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "/app/cpa-helper", "doctor"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - cli-proxy-api
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"

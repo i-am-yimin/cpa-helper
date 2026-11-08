@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+[[ $EUID -eq 0 ]] || { echo 'Run as root.' >&2; exit 77; }
+image=${1:?immutable image reference required}
+sha=${2:?full source commit required}
+[[ $sha =~ ^[0-9a-f]{40}$ ]] || exit 64
+[[ $image =~ ^ghcr\.io/i-am-yimin/cpa-helper:sha-${sha}@sha256:[0-9a-f]{64}$ ]] || exit 64
+
+root=/opt/ai-gateway
+repo=/srv/nigulas/cpa-helper
+curl=/usr/local/bin/curl
+python=/usr/bin/python3
+exec 9>/var/lock/cpa-helper-deploy.lock
+flock -n 9 || { echo 'Another gateway deployment is active.' >&2; exit 75; }
+mkdir -p "$root/releases" "$root/backups"
+if [[ ! -d $repo/.git ]]; then
+  mkdir -p "$repo"
+  git -C "$repo" init -q
+  git -C "$repo" remote add origin https://github.com/i-am-yimin/cpa-helper.git
+fi
+[[ $(git -C "$repo" remote get-url origin) == https://github.com/i-am-yimin/cpa-helper.git ]] || exit 65
+git -C "$repo" fetch --depth=1 origin ext:refs/remotes/origin/ext
+[[ $(git -C "$repo" rev-parse origin/ext) == "$sha" ]] || {
+  echo 'Refusing to deploy a superseded commit.' >&2; exit 65;
+}
+
+release="$root/releases/$sha"
+mkdir -p "$release"
+git -C "$repo" archive "$sha" deploy | tar -x -C "$release"
+core_image=$(tr -d '\r\n' < "$release/deploy/core-image.txt")
+[[ $core_image =~ ^eceasy/cli-proxy-api@sha256:[0-9a-f]{64}$ ]] || exit 65
+printf 'CPA_HELPER_IMAGE=%s\nCLI_PROXY_IMAGE=%s\n' "$image" "$core_image" > "$release/.env"
+compose() { docker compose --project-name ai-gateway --env-file "$1/.env" -f "$1/deploy/compose.yml" "${@:2}"; }
+
+registry_user= registry_token=
+IFS= read -r registry_user || true
+IFS= read -r registry_token || true
+docker_config=$(mktemp -d /var/tmp/cpa-helper-registry.XXXXXX)
+export DOCKER_CONFIG="$docker_config"
+previous=$(readlink -f "$root/current" 2>/dev/null || true)
+backup= rollback_needed=0 backup_ready=0
+finish() {
+  status=$?
+  trap - EXIT
+  if [[ $status -ne 0 && $rollback_needed -eq 1 ]]; then
+    echo 'Deployment failed; restoring the previous gateway state.' >&2
+    compose "$release" stop --timeout 30 || true
+    if [[ $backup_ready -eq 1 ]]; then
+      # Move failed state aside; never merge an old database with new WAL files.
+      for name in core auths logs helper secrets; do
+        [[ ! -e $root/$name ]] || mv "$root/$name" "$backup/failed-$name"
+      done
+      tar -xzf "$backup/state.tar.gz" -C "$root"
+    fi
+    if [[ -n $previous && -f $previous/.env ]]; then
+      compose "$previous" up -d --no-build || true
+    fi
+  fi
+  rm -rf -- "$docker_config"
+  exit "$status"
+}
+trap finish EXIT
+if [[ -n $registry_token ]]; then
+  printf '%s' "$registry_token" | docker login ghcr.io --username "$registry_user" --password-stdin >/dev/null
+fi
+unset registry_token
+compose "$release" config --quiet
+compose "$release" pull
+revision=$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+[[ $revision == "$sha" ]] || { echo 'Image revision mismatch.' >&2; exit 65; }
+"$python" "$release/deploy/bootstrap.py" prepare
+
+if [[ -n $previous && -f $previous/.env ]]; then
+  backup="$root/backups/$(date -u +%Y%m%dT%H%M%SZ)-$sha"
+  mkdir -p "$backup"
+  rollback_needed=1
+  compose "$previous" stop --timeout 30
+  tar -czf "$backup/state.tar.gz" -C "$root" core auths logs helper secrets
+  backup_ready=1
+else
+  rollback_needed=1
+fi
+compose "$release" up -d --no-build --remove-orphans
+ready=0
+for ((attempt=0; attempt<60; attempt++)); do
+  if "$curl" -fsS --max-time 3 http://127.0.0.1:18317/api/ready >/dev/null 2>&1 \
+    && "$curl" -fsS --max-time 3 http://127.0.0.1:8317/ >/dev/null 2>&1; then
+    ready=1; break
+  fi
+  sleep 2
+done
+[[ $ready -eq 1 ]] || { echo 'Gateway readiness deadline exceeded.' >&2; exit 1; }
+"$python" "$release/deploy/bootstrap.py" configure
+"$python" "$release/deploy/bootstrap.py" check
+ln -sfn "$release" "$root/current.next"
+mv -Tf "$root/current.next" "$root/current"
+rollback_needed=0
+compose "$release" ps
+echo "Gateway deployment completed: $sha"
