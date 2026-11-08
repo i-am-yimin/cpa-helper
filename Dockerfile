@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS frontend-build
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS frontend-build
 
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/package-lock.json ./
 RUN --mount=type=cache,id=cpa-helper-npm,target=/root/.npm,sharing=locked \
-    npm ci --prefer-offline
+    npm ci --prefer-offline --no-audit --no-fund
 
 COPY VERSION ../VERSION
 COPY frontend/ ./

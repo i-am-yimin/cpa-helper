@@ -1,4 +1,11 @@
 .env.postgres
+.env
+.env.*
+!.env.example
+!.env.*.example
+release/
+backend/*.test
+*.prof
 .venv/
 backend/.venv/
 backend/local_migrations/

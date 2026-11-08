@@ -32,13 +32,9 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 700,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          unovis: ['@unovis/vue'],
-        },
-      },
-    },
+    // Let Rollup keep charts behind the lazy usage routes. Forcing the Unovis
+    // entry into a chunk also pulls shared Vue code into that chunk, so even
+    // the login page must download and evaluate the chart library.
   },
   resolve: {
     alias: {

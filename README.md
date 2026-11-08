@@ -19,6 +19,8 @@
 
 ---
 
+Fork development: see [local setup, branches and build notes](docs/development.md).
+
 CPA-Helper is a local self-hosted multi-user administration panel for CLIProxyAPI / CPA users. It centralizes usage analytics, request records, user accounts, API keys, model pricing, available models and Codex auth file inspection.
 
 It separates API keys and usage data by user: each user can create and manage their own keys and inspect their own requests, tokens and cost statistics, while administrators can create or disable regular accounts and review global plus per-user usage. It is built with Go, SQLite or PostgreSQL, Vue 3 and Vite, with runtime data stored in the root-level `data/` directory by default.
@@ -190,7 +192,7 @@ CPA-Helper/
 ## Requirements
 
 - Go 1.25 or newer.
-- Node.js 20 or newer.
+- Node.js 22.13 or newer (see `frontend/.nvmrc`).
 - npm.
 - An accessible CLIProxyAPI / CPA service. The default URL is `http://127.0.0.1:8317`.
 
@@ -198,12 +200,13 @@ CPA-Helper/
 
 ### 1. Docker Compose deployment (recommended)
 
-Create `docker-compose.yml` in the deployment directory:
+Run Compose from the cloned repository to build this fork's source:
 
 ```yaml
 services:
   cpa-helper:
-    image: walkingd/cpa-helper:latest
+    image: ${CPA_HELPER_IMAGE:-cpa-helper:local}
+    build: .
     container_name: cpa-helper
     restart: always
     # 如需改为bridge,需将容器内部端口 18317 映射至主机
@@ -215,11 +218,10 @@ services:
       - ./data:/app/data
 ```
 
-Then pull the image and start the service:
+Then build the image and start the service (host networking requires Linux):
 
 ```powershell
-docker compose pull
-docker compose up -d
+docker compose up -d --build
 ```
 
 Open:
@@ -233,8 +235,8 @@ On first visit, the application guides you through creating the first administra
 ### 2. Clone the repository
 
 ```powershell
-git clone <your-repo-url>
-cd CPA-Helper
+git clone https://github.com/i-am-yimin/cpa-helper.git
+cd cpa-helper
 ```
 
 ### 3. Start the backend
@@ -429,8 +431,8 @@ connect to real CPA only after the risk is explicitly accepted.
 ### Version Management
 
 The project version is stored in the root `VERSION` file, for example `0.1.0`.
-GitHub Actions reads it to push `walkingd/cpa-helper:v0.1.0` and
-`walkingd/cpa-helper:latest`; the frontend build reads the same file and
+The manual Build and Release workflow reads it to push `ghcr.io/<owner>/cpa-helper:v0.1.0` and
+`ghcr.io/<owner>/cpa-helper:latest`; the frontend build reads the same file and
 displays it as `v0.1.0`.
 
 Backend:

@@ -1,0 +1,31 @@
+name: Frontend checks
+
+on:
+  push:
+    branches: [main, ext]
+    paths: ['frontend/**', 'VERSION', '.github/workflows/frontend-checks.yml']
+  pull_request:
+    paths: ['frontend/**', 'VERSION', '.github/workflows/frontend-checks.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --prefer-offline --no-audit --no-fund
+        working-directory: frontend
+      - run: npm run lint && npm run test:i18n && npm run build
+        working-directory: frontend

@@ -19,6 +19,8 @@
 
 ---
 
+本 fork 的分支说明、本地开发与构建方式见[开发说明](docs/development.md)。
+
 CPA-Helper 是面向 CLIProxyAPI / CPA 用户的本地自托管多用户管理面板，用于集中管理用量统计、请求明细、用户账号、API Key、模型价格、可用模型以及 Codex auth file 巡检维护。
 
 它支持按用户隔离 API Key 与用量数据：每个用户都可以独立创建和管理自己的 Key，并查看属于自己的请求、Token 与费用统计；管理员可以创建或禁用普通用户账号，查看全局用量和用户维度明细，适合个人、小团队或共享 CPA 服务的内网场景。项目采用 Go + SQLite / PostgreSQL + Vue 3 + Vite 构建，默认将运行数据写入仓库根目录的 `data/` 目录。
@@ -189,7 +191,7 @@ CPA-Helper/
 ## 环境要求
 
 - Go 1.25 或更高版本。
-- Node.js 20 或更高版本。
+- Node.js 22.13 或更高版本（参见 `frontend/.nvmrc`）。
 - npm。
 - 一个可访问的 CLIProxyAPI / CPA 服务。默认地址为 `http://127.0.0.1:8317`。
 
@@ -197,12 +199,13 @@ CPA-Helper/
 
 ### 1. Docker Compose 部署（推荐）
 
-在部署目录创建 `docker-compose.yml`：
+在克隆后的仓库目录使用 `docker-compose.yml`，构建本 fork 的代码：
 
 ```yaml
 services:
   cpa-helper:
-    image: walkingd/cpa-helper:latest
+    image: ${CPA_HELPER_IMAGE:-cpa-helper:local}
+    build: .
     container_name: cpa-helper
     restart: always
     # 如需改为bridge,需将容器内部端口 18317 映射至主机
@@ -214,11 +217,10 @@ services:
       - ./data:/app/data
 ```
 
-然后直接拉取镜像并启动：
+然后构建镜像并启动（host 网络模式适用于 Linux）：
 
 ```powershell
-docker compose pull
-docker compose up -d
+docker compose up -d --build
 ```
 
 访问：
@@ -232,8 +234,8 @@ http://127.0.0.1:18317
 ### 2. 克隆项目
 
 ```powershell
-git clone <your-repo-url>
-cd CPA-Helper
+git clone https://github.com/i-am-yimin/cpa-helper.git
+cd cpa-helper
 ```
 
 ### 3. 启动后端
@@ -417,7 +419,7 @@ npm run dev -- --host 127.0.0.1 --port 5174 --strictPort
 
 ### 版本管理
 
-项目版本统一写在根目录 `VERSION` 文件中，例如 `0.1.0`。GitHub Actions 会读取它并推送 `walkingd/cpa-helper:v0.1.0` 和 `walkingd/cpa-helper:latest`；前端构建也会读取同一个文件并显示为 `v0.1.0`。
+项目版本统一写在根目录 `VERSION` 文件中，例如 `0.1.0`。手动运行 Build and Release 工作流后，会推送 `ghcr.io/<owner>/cpa-helper:v0.1.0` 和 `ghcr.io/<owner>/cpa-helper:latest`；前端构建也会读取同一个文件并显示为 `v0.1.0`。
 
 后端：
 
