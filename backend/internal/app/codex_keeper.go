@@ -2781,6 +2781,10 @@ func (a *App) processKeeperAuthLocked(ctx context.Context, cfg AppConfig, authIn
 			disabled = true
 			result.Disabled = &disabled
 			result.Priority = nil
+			if quotaPolicy.Paused {
+				low := -1
+				result.Priority = &low
+			}
 			action = "禁用凭证：" + message
 		} else {
 			action = "模拟禁用：" + message
@@ -2828,6 +2832,10 @@ func (a *App) processKeeperAuthLocked(ctx context.Context, cfg AppConfig, authIn
 			disabled = true
 			result.Disabled = &disabled
 			result.Priority = nil
+			if quotaPolicy.Paused {
+				low := -1
+				result.Priority = &low
+			}
 			action = "禁用凭证：" + message
 		} else {
 			action = "模拟禁用：" + message

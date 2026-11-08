@@ -204,6 +204,40 @@ func TestCodexQuotaResumePreservesOtherDisableReasons(t *testing.T) {
 	}
 }
 
+func TestCodexQuotaPauseKeepsMinusOneDuringBadCredentialAndRecovery(t *testing.T) {
+	a, cfg, mock := quotaGuardFixture(t)
+	guardProcess(t, a, cfg)
+	mock.mu.Lock()
+	mock.status = 401
+	mock.mu.Unlock()
+	result := guardProcess(t, a, cfg)
+	if result.Priority == nil || *result.Priority != -1 {
+		t.Fatalf("bad credential cleared quota priority: %#v", result)
+	}
+	local, err := a.getKeeperState(context.Background(), "guard.json")
+	if err != nil || local.Priority == nil || *local.Priority != -1 {
+		t.Fatalf("local fallback lost quota priority: %#v %v", local, err)
+	}
+	state, _ := a.getCodexQuotaPolicy(context.Background(), "guard.json")
+	if !state.Paused || !state.CredentialBlocked {
+		t.Fatalf("lost independent disable reasons: %#v", state)
+	}
+	mock.mu.Lock()
+	mock.status = 200
+	mock.used = 0
+	mock.mu.Unlock()
+	guardProcess(t, a, cfg)
+	state, _ = a.getCodexQuotaPolicy(context.Background(), "guard.json")
+	if !state.Paused || state.CredentialBlocked {
+		t.Fatalf("health recovery changed quota latch: %#v", state)
+	}
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if !keeperBool(mock.remote["disabled"]) || keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != -1 {
+		t.Fatal("health recovery restored quota-paused routing")
+	}
+}
+
 func TestCodexQuotaWindowIdentityValidityAndInclusiveThresholds(t *testing.T) {
 	future, past := time.Now().Add(time.Hour), time.Now().Add(-time.Minute)
 	rule := codexQuotaRule{Mode: "custom", FiveHourRemaining: quotaInt(10), WeekRemaining: quotaInt(0)}
