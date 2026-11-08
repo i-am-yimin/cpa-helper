@@ -19,4 +19,13 @@ SHA-256：`b6a4743643a68748fd84710549704f5a57f23f615f69350699d6fd30a4eddfad`
 
 已成功交叉编译并检查 `cliproxy_plugin_init`、`cliproxyPluginCall`、`cliproxyPluginFree`、`cliproxyPluginShutdown` 导出。纯 Go 协议和模拟候选选路测试通过；未在真实 CPA Core 进程加载，也未验证生产权限、真实账户额度或 PostgreSQL 容器。
 
+## 2026-11-09 生产部署验收
+
+- 生产代码：`dee502800342fe1979119c4ae6ff8aa13187d297`；[构建与部署流水线通过](https://github.com/i-am-yimin/cpa-helper/actions/runs/42504587791)。
+- 生产 Core 的 glibc 与新构建的插件匹配，插件已注册并有效启用，版本为 `1.0.0`。
+- 一笔受控模型请求返回 HTTP 200；共享目录中的原生调度心跳已更新，证实插件参与了真实选路。
+- 公网 `/api/ready` 返回 200，当前/目标数据库版本均为 `202611080001`；Looseleaf 字体资源返回 200。
+- 未认证模型接口返回 401，公网管理接口继续隐藏（404）；已有管理员和设置保留。
+- 上述生产验证补齐了此前的原生加载与真实请求验证；仍未执行 PostgreSQL 容器验收。
+
 接入与恢复方式见 [Antigravity 分组调度说明](antigravity-group-scheduler.md)。设计规范见根目录 [DESIGN.md](../DESIGN.md)。本地截图位于 `.impeccable/review/`，不进入 Git。

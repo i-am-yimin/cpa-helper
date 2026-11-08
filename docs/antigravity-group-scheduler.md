@@ -64,7 +64,7 @@ Core 只启用一个最高顺序的 scheduler 插件。若已有调度插件，�
 
 禁用该 scheduler 插件即可回到 CPA 内置调度；未改写全局 priority，也未复制或拆分 OAuth 凭证。共享文件缺失、损坏、无法匹配模型时回退内置选路。
 
-本次交付包含源码、Linux 构建产物和模拟候选回归验证；没有修改外部 Core 服务配置，尚未在真实 Core 进程加载插件或消耗真实账户额度。
+2026-11-09 已部署至 [AI Gateway](https://aigateway.nigulas.top)。生产镜像使用与 Core 匹配的 Linux glibc 插件，Core 已确认插件注册并有效启用；一笔受控模型请求返回 HTTP 200，并产生新的原生调度心跳。部署保留了现有管理员、设置和账户数据。记录见 [Deploy AI Gateway #42504587791](https://github.com/i-am-yimin/cpa-helper/actions/runs/42504587791)，生产代码提交为 `dee502800342fe1979119c4ae6ff8aa13187d297`。
 
 ## 上游依据
 
