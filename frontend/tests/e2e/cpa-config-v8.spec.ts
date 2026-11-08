@@ -133,7 +133,7 @@ test('V8 upstream editing preserves untouched empty overrides and refreshes the 
     revision = `"${'b'.repeat(64)}"`
     return route.fulfill({ json: { status: 'updated' } })
   })
-  await page.goto('/admin/upstreams')
+  await page.goto('/admin/upstreams?tab=configuration')
   await page.getByRole('tab', { name: /^Codex/ }).click()
   await page.getByRole('button', { name: '打开 配置 #1 的操作菜单', exact: true }).click()
   await page.getByRole('menuitem', { name: '编辑', exact: true }).click()

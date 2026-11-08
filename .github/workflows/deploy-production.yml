@@ -44,7 +44,9 @@ jobs:
             if curl -fsS http://127.0.0.1:5174/ > /dev/null; then break; fi
             sleep 1
           done
-          npx playwright test antigravity-quota.spec.ts
+          npx playwright test antigravity-quota.spec.ts upstream-hub.spec.ts
+      - name: Deployment scheduler regression
+        run: python3 -m unittest discover -s deploy -p 'test_*.py' -v
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod

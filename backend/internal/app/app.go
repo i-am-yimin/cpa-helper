@@ -71,6 +71,9 @@ type App struct {
 	keeperUsageCache          keeperWindowUsageCache
 	keeperResetCache          keeperResetCreditCache
 	antigravityQuotaCache     antigravityQuotaCache
+	groupSchedulerMu          sync.Mutex
+	groupSchedulerCancel      context.CancelFunc
+	groupSchedulerDone        chan struct{}
 	usageCache                usageQueryCache
 	quotaSyncMu               sync.Mutex
 	oidcMu                    sync.Mutex
@@ -183,9 +186,14 @@ func (a *App) startBackground(ctx context.Context) {
 	a.keeper.StartAutoIfConfigured()
 	a.usageMaintenance.Start()
 	a.startQuotaMaintenance(ctx)
+	a.startGroupSchedulerMaintenance(ctx)
 }
 
 func (a *App) Close() {
+	if a.groupSchedulerCancel != nil {
+		a.groupSchedulerCancel()
+		<-a.groupSchedulerDone
+	}
 	if a.quotaMaintenanceCancel != nil {
 		a.quotaMaintenanceCancel()
 		<-a.quotaMaintenanceDone
@@ -321,6 +329,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("/api/card-shops/tags", a.wrap(a.handleCardShopTags))
 	mux.HandleFunc("/api/card-shops", a.wrap(a.handleCardShops))
 	mux.HandleFunc("/api/upstreams", a.wrap(a.handleUpstreams))
+	mux.HandleFunc("/api/upstreams/group-scheduler", a.wrap(a.handleGroupScheduler))
 	mux.HandleFunc("/api/upstreams/", a.wrap(a.handleUpstreams))
 	mux.HandleFunc("/api/codex-keeper/", a.wrap(a.handleCodexKeeper))
 	mux.HandleFunc("/", a.wrap(a.handleSPA))

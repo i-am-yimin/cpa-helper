@@ -170,6 +170,8 @@ type AccountStatusPreferences = {
     direction?: unknown
   }
 }
+
+defineProps<{ embedded?: boolean }>()
 type AuthFileEditorState = {
   fileName: string
   fileInfoText: string
@@ -2633,7 +2635,8 @@ onBeforeUnmount(() => {
 <template>
   <section class="page account-status-page">
     <div class="page-toolbar account-page-header">
-      <h1 data-page-title class="page-title">{{ accountPageTitle }}</h1>
+      <h1 v-if="!embedded" data-page-title class="page-title">{{ accountPageTitle }}</h1>
+      <h2 v-else class="section-title">{{ t('OAuth 凭证与文件', 'OAuth credentials & files') }}</h2>
       <div class="header-actions">
         <Button v-if="canManageAccounts" variant="outline" @click="openCodexOAuthDialog">
           <LogIn data-icon="inline-start" />

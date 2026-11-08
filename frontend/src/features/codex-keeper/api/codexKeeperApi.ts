@@ -25,6 +25,14 @@ export function getAntigravityQuota(name: string, force = false): Promise<Antigr
   return force ? apiClient.post<AntigravityQuotaSnapshot>(path) : apiClient.get<AntigravityQuotaSnapshot>(path)
 }
 
+export function getGroupSchedulerStatus(): Promise<{ active: boolean; last_pick_at: string; plugin: string }> {
+  return apiClient.get('/upstreams/group-scheduler')
+}
+
+export function updateAntigravityGroup(payload: { auth_name: string; group_id: string; priority: number; model_patterns: string[] }): Promise<AntigravityQuotaSnapshot> {
+  return apiClient.put('/upstreams/group-scheduler', payload)
+}
+
 export function uploadCodexKeeperAuthFiles(files: File[]): Promise<CodexKeeperAuthFileUploadResponse> {
   const form = new FormData()
   files.forEach((file) => form.append('file', file, file.name))

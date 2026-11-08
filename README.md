@@ -55,7 +55,7 @@ For clarity, model requests initiated by an Agent are still sent directly from t
 - **CLIProxyAPI / CPAMC integration**: Configure the service URL, management key, usage queue and local collector options to persist remote usage events into the configured database.
 - **Codex auth file inspection**: Support Cron scheduling, quota thresholds, check-only mode, conditional scanning, concurrent workers, priority rules, account enable/disable and deletion.
 - **Database options**: SQLite remains the default (`CPA_HELPER_DATA_DIR`). Set `CPA_HELPER_DATABASE_URL` to use PostgreSQL with a configurable connection pool. Existing SQLite data requires an explicit, verified import; see the [complete migration runbook](docs/postgresql-migration.md).
-- **Modern admin interface**: Built with Vue 3, Naive UI, ECharts and lucide icons, with light, dark and system theme modes.
+- **Modern admin interface**: Built with Vue 3, Reka UI, Unovis and lucide icons in a Looseleaf paper-and-ink style, with light, dark and system theme modes.
 
 ## Setup Tutorials
 
@@ -159,7 +159,7 @@ View the current signed-in account and update the password.
 ## Tech Stack
 
 - **Backend**: Go standard-library HTTP server, SQLite (modernc) / PostgreSQL (pgx), and robfig/cron.
-- **Frontend**: Vue 3, Vite, TypeScript, Vue Router, Naive UI, ECharts and lucide-vue-next.
+- **Frontend**: Vue 3, Vite, TypeScript, Vue Router, Reka UI, Unovis and @lucide/vue.
 - **Runtime data**: Stored in root-level `data/` by default; the SQLite database is `data/db/cpa_helper.sqlite3`.
 - **API shape**: The backend exposes `/api/*`; the Vite development server proxies API calls to `http://127.0.0.1:18317`.
 

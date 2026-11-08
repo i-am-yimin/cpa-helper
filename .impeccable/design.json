@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-08T15:33:33.314Z",
+  "title": "Design System: CPA-Helper",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Burnt clay"
+      },
+      "desk": {
+        "role": "secondary",
+        "displayName": "Sage desk"
+      },
+      "sidebar": {
+        "role": "secondary",
+        "displayName": "Sage navigation"
+      },
+      "highlight": {
+        "role": "secondary",
+        "displayName": "Yellow highlighter"
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Soft yellow notice"
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Leaf green"
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Ochre warning"
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Brick red"
+      },
+      "ring": {
+        "role": "tertiary",
+        "displayName": "Blue focus ink"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm paper"
+      },
+      "slip": {
+        "role": "neutral",
+        "displayName": "Paper slip"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Brown-black ink"
+      },
+      "paper-dark": {
+        "role": "neutral",
+        "displayName": "Dark warm paper"
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Light warm ink"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page heading",
+        "purpose": "Page-title hierarchy; compact inherited line-height is 1.16 at max-width 720px."
+      },
+      "title": {
+        "displayName": "Card heading",
+        "purpose": "Card titles with gently tightened tracking."
+      },
+      "body": {
+        "displayName": "Root reading text",
+        "purpose": "Base reading size; dense interface elements use their existing smaller roles."
+      },
+      "control": {
+        "displayName": "Interface control",
+        "purpose": "Buttons and compact navigation."
+      },
+      "label": {
+        "displayName": "Small label",
+        "purpose": "Badges and compact interface labels."
+      },
+      "mono": {
+        "displayName": "Technical text",
+        "purpose": "Code, preformatted content and technical identifiers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "cpa-shadow-card",
+        "value": "0 2px 3px -2px rgb(58 44 30 / 18%)",
+        "purpose": "Default paper card and panel contact shadow."
+      },
+      {
+        "name": "cpa-shadow-soft",
+        "value": "0 6px 18px -12px rgb(58 44 30 / 24%)",
+        "purpose": "Existing softer paper lift token."
+      },
+      {
+        "name": "button-contact",
+        "value": "0 2px 1px -1px rgb(58 44 30 / 15%)",
+        "purpose": "Solid and outline buttons at rest; removed when pressed."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "150ms",
+        "purpose": "Button background, color, border, transform and shadow transitions."
+      },
+      {
+        "name": "button-press",
+        "value": "translateY(1px)",
+        "purpose": "Enabled button pressed feedback with contact shadow removed."
+      },
+      {
+        "name": "route-fade",
+        "value": "opacity 180ms ease, transform 180ms ease",
+        "purpose": "Route enter and leave; displaced by translateY(6px) at the faded endpoint."
+      },
+      {
+        "name": "route-progress",
+        "value": "900ms ease-in-out infinite",
+        "purpose": "Slim pending-navigation indicator; its animation is disabled for reduced motion."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "Looseleaf global animation and transition duration override; scroll behavior becomes auto."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "analytics-grid",
+        "value": "max-width: 1180px",
+        "purpose": "Existing metric and toolbar grids reduce columns."
+      },
+      {
+        "name": "compact-page",
+        "value": "max-width: 720px",
+        "purpose": "Existing page rhythm, panel insets and compact title line-height."
+      },
+      {
+        "name": "upstream-vertical-rows",
+        "value": "max-width: 767px",
+        "purpose": "Upstream table becomes vertical grid rows and group fields stack."
+      },
+      {
+        "name": "compact-shell",
+        "value": "max-width: 768px",
+        "purpose": "Compact brand header and smaller content insets."
+      },
+      {
+        "name": "desktop-shell",
+        "value": "min-width: 769px",
+        "purpose": "Desktop location label and standard content insets."
+      },
+      {
+        "name": "input-interface-text",
+        "value": "min-width: 768px",
+        "purpose": "Tailwind md input text changes from 16px to 14px."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Standard clay action with a contact shadow and decorative ink outline; the upstream configuration CTA has its own yellow override.",
+      "html": "<button class=\"ds-primary\" type=\"button\"><svg class=\"ds-primary-ink\" viewBox=\"0 0 120 36\" preserveAspectRatio=\"none\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M 7 2.2 Q 54 .6 113 2.6 Q 118.5 2 118 8 Q 119.6 18.72 117.5 30 Q 117 34.6 112 34 Q 62.4 35.7 7 33.5 Q 1.2 33 2 28 Q .6 16.2 2.5 7 Q 2.8 1.8 7 2.2 Z\" fill=\"none\" vector-effect=\"non-scaling-stroke\" /></svg>保存更改</button>",
+      "css": ".ds-primary { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 10px; border:1px solid transparent; border-radius:5px 8px 6px 9px / 8px 5px 9px 6px; font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:14px; font-weight:500; line-height:20px; white-space:nowrap; cursor:pointer; transition:background-color 150ms, color 150ms, border-color 150ms, transform 150ms, box-shadow 150ms; } .ds-primary:focus-visible { outline:2px solid var(--ring, #2c4f9e); outline-offset:3px; box-shadow:0 0 0 3px color-mix(in srgb, var(--ring, #2c4f9e) 50%, transparent); } .ds-primary:active:not(:disabled) { transform:translateY(1px); box-shadow:none; } .ds-primary:disabled { opacity:.5; pointer-events:none; } @media (prefers-reduced-motion:reduce) { .ds-primary { transition-duration:.01ms; } } @media (forced-colors:active) { .ds-primary { border:1px solid CanvasText; box-shadow:none; } } .ds-primary { background:var(--primary, #a84422); color:var(--primary-foreground, #fffdf6); box-shadow:0 2px 1px -1px rgb(58 44 30 / 15%); } .ds-primary:hover { background:color-mix(in srgb, var(--primary, #a84422) 90%, transparent); } .ds-primary-ink { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; stroke:var(--foreground, #2a2420); stroke-width:1.15px; }"
+    },
+    {
+      "name": "Outline button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Quiet paper action with ink framing and a muted hover state.",
+      "html": "<button class=\"ds-outline\" type=\"button\"><svg class=\"ds-outline-ink\" viewBox=\"0 0 120 36\" preserveAspectRatio=\"none\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M 7 2.2 Q 54 .6 113 2.6 Q 118.5 2 118 8 Q 119.6 18.72 117.5 30 Q 117 34.6 112 34 Q 62.4 35.7 7 33.5 Q 1.2 33 2 28 Q .6 16.2 2.5 7 Q 2.8 1.8 7 2.2 Z\" fill=\"none\" vector-effect=\"non-scaling-stroke\" /></svg>刷新总览</button>",
+      "css": ".ds-outline { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 10px; border:1px solid transparent; border-radius:5px 8px 6px 9px / 8px 5px 9px 6px; font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:14px; font-weight:500; line-height:20px; white-space:nowrap; cursor:pointer; transition:background-color 150ms, color 150ms, border-color 150ms, transform 150ms, box-shadow 150ms; } .ds-outline:focus-visible { outline:2px solid var(--ring, #2c4f9e); outline-offset:3px; box-shadow:0 0 0 3px color-mix(in srgb, var(--ring, #2c4f9e) 50%, transparent); } .ds-outline:active:not(:disabled) { transform:translateY(1px); box-shadow:none; } .ds-outline:disabled { opacity:.5; pointer-events:none; } @media (prefers-reduced-motion:reduce) { .ds-outline { transition-duration:.01ms; } } @media (forced-colors:active) { .ds-outline { border:1px solid CanvasText; box-shadow:none; } } .ds-outline { background:var(--background, #f8f5ee); color:var(--foreground, #2a2420); box-shadow:0 2px 1px -1px rgb(58 44 30 / 15%); } .ds-outline:hover { background:var(--muted, #eee9df); } :host-context(.dark) .ds-outline { background:color-mix(in srgb, var(--input, #8b8170) 30%, transparent); } :host-context(.dark) .ds-outline:hover { background:color-mix(in srgb, var(--input, #8b8170) 50%, transparent); } .ds-outline-ink { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; stroke:var(--foreground, #2a2420); stroke-width:1.15px; }"
+    },
+    {
+      "name": "Ghost button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis action without an ink outline or contact shadow.",
+      "html": "<button class=\"ds-ghost\" type=\"button\">调整排序</button>",
+      "css": ".ds-ghost { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 10px; border:1px solid transparent; border-radius:5px 8px 6px 9px / 8px 5px 9px 6px; font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:14px; font-weight:500; line-height:20px; white-space:nowrap; cursor:pointer; transition:background-color 150ms, color 150ms, border-color 150ms, transform 150ms, box-shadow 150ms; } .ds-ghost:focus-visible { outline:2px solid var(--ring, #2c4f9e); outline-offset:3px; box-shadow:0 0 0 3px color-mix(in srgb, var(--ring, #2c4f9e) 50%, transparent); } .ds-ghost:active:not(:disabled) { transform:translateY(1px); box-shadow:none; } .ds-ghost:disabled { opacity:.5; pointer-events:none; } @media (prefers-reduced-motion:reduce) { .ds-ghost { transition-duration:.01ms; } } @media (forced-colors:active) { .ds-ghost { border:1px solid CanvasText; box-shadow:none; } } .ds-ghost { background:transparent; color:var(--foreground, #2a2420); box-shadow:none; } .ds-ghost:hover { background:var(--muted, #eee9df); } :host-context(.dark) .ds-ghost:hover { background:color-mix(in srgb, var(--muted, #38362e) 50%, transparent); }"
+    },
+    {
+      "name": "Search field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labeled popover-paper field with stronger ink stroke, keyboard focus and invalid/disabled states.",
+      "html": "<label class=\"ds-field-label\" for=\"ds-search-field\">搜索上游</label><input class=\"ds-field\" id=\"ds-search-field\" type=\"search\" placeholder=\"搜索账号、服务商或地址…\" />",
+      "css": ".ds-field-label { display:block; margin-bottom:6px; color:var(--foreground, #2a2420); font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:12px; line-height:16px; } .ds-field { box-sizing:border-box; width:100%; min-width:0; height:36px; padding:4px 10px; border:1px solid var(--input, #8e8375); border-radius:5px 8px 4px 7px; background:var(--popover, #fffdf6); color:var(--foreground, #2a2420); caret-color:var(--primary, #a84422); font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:16px; line-height:24px; transition:color 150ms, border-color 150ms, background-color 150ms; } .ds-field::placeholder { color:color-mix(in srgb, var(--muted-foreground, #60584f) 80%, transparent); } .ds-field:hover:not(:disabled) { border-color:var(--input, #8e8375); } .ds-field:focus-visible { outline:2px solid var(--ring, #2c4f9e); outline-offset:3px; border-color:var(--ring, #2c4f9e); } .ds-field[aria-invalid=\"true\"] { border-color:var(--destructive, #b43a28); } .ds-field:disabled { opacity:.5; pointer-events:none; cursor:not-allowed; background:color-mix(in srgb, var(--input, #8e8375) 50%, transparent); } @media (min-width:768px) { .ds-field { font-size:14px; line-height:20px; } } @media (prefers-reduced-motion:reduce) { .ds-field { transition-duration:.01ms; } }"
+    },
+    {
+      "name": "Active sidebar item",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Compact sage navigation with a yellow active item, ink text and an inline icon; labels remain subject to application permissions.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"示例导航\"><button class=\"ds-nav-item\" type=\"button\" aria-current=\"page\"><svg class=\"ds-nav-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"2\" width=\"6\" height=\"6\" rx=\"1\"/><rect x=\"2\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\"/><rect x=\"16\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\"/><path d=\"M12 8v4M5 16v-4h14v4\"/></svg><span class=\"ds-nav-label\">上游与凭证</span></button></nav>",
+      "css": ".ds-nav { padding:8px; background:var(--sidebar, #e7ecdf); } .ds-nav-item { box-sizing:border-box; display:flex; align-items:center; width:100%; height:32px; gap:8px; padding:8px; border:0; border-radius:4px 9px 5px 7px; background:transparent; color:var(--sidebar-foreground, #2a2420); text-align:start; font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:14px; font-weight:500; line-height:20px; cursor:pointer; } .ds-nav-item[aria-current=\"page\"], .ds-nav-item:hover, .ds-nav-item:active { background:var(--sidebar-accent, #f8dc4c); color:var(--sidebar-accent-foreground, #2a2420); } .ds-nav-item:focus-visible { outline:2px solid var(--sidebar-ring, #2c4f9e); outline-offset:3px; } .ds-nav-item:disabled { opacity:.5; pointer-events:none; } .ds-nav-icon { flex:none; width:16px; height:16px; } .ds-nav-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }"
+    },
+    {
+      "name": "Outline badge",
+      "kind": "chip",
+      "refersTo": "badge-outline",
+      "description": "Quiet compact state label with an irregular corner profile; preview wording is illustrative.",
+      "html": "<span class=\"ds-badge\">待刷新</span>",
+      "css": ".ds-badge { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; height:20px; padding:2px 8px; border:1px solid var(--border, #c8bfb0); border-radius:4px 6px 3px 5px; background:transparent; color:var(--foreground, #2a2420); font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:12px; font-weight:500; line-height:16px; white-space:nowrap; } .ds-badge:is(a,button):hover { background:var(--muted, #eee9df); } .ds-badge:is(a,button):focus-visible { outline:2px solid var(--ring, #2c4f9e); outline-offset:3px; }"
+    },
+    {
+      "name": "Paper card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Warm slip with subtle input-colored ink framing, shallow shadow and default panel spacing.",
+      "html": "<section class=\"ds-card\"><svg class=\"ds-card-ink\" viewBox=\"0 0 320 118\" preserveAspectRatio=\"none\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M 7 2.2 Q 144 .6 313 2.6 Q 318.5 2 318 8 Q 319.6 61.36 317.5 112 Q 317 116.6 312 116 Q 166.4 117.7 7 115.5 Q 1.2 115 2 110 Q .6 53.1 2.5 7 Q 2.8 1.8 7 2.2 Z\" fill=\"none\" vector-effect=\"non-scaling-stroke\"/></svg><h2 class=\"ds-card-title\">接入配置</h2><p class=\"ds-card-copy\">在此查看来源、配置与状态说明。</p></section>",
+      "css": ".ds-card { position:relative; display:flex; flex-direction:column; gap:20px; overflow:hidden; padding:20px; border:1px solid transparent; border-radius:7px 11px 6px 9px; background:var(--card, #fbf8f1); color:var(--card-foreground, #2a2420); box-shadow:var(--cpa-shadow-card, 0 2px 3px -2px rgb(58 44 30 / 18%)); font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:14px; line-height:20px; } .ds-card-ink { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; stroke:var(--input, #8e8375); stroke-width:1px; } .ds-card-title { margin:0; font-size:18px; font-weight:500; line-height:1.375; letter-spacing:-.01em; } .ds-card-copy { margin:0; color:var(--muted-foreground, #60584f); } @media (forced-colors:active) { .ds-card { border:1px solid CanvasText; box-shadow:none; } }"
+    },
+    {
+      "name": "Underlined tabs",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Flat navigation strip with muted inactive labels and a clay underline for the selected tab; Reka UI owns real application interaction.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\" aria-label=\"示例标签\"><button class=\"ds-tab\" type=\"button\" role=\"tab\" aria-selected=\"true\">全部上游</button><button class=\"ds-tab\" type=\"button\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\">API 接入配置</button></div>",
+      "css": ".ds-tabs { display:flex; gap:18px; justify-content:flex-start; max-width:100%; overflow-x:auto; border-bottom:1px solid var(--border, #c8bfb0); } .ds-tab { flex:none; padding:10px 3px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--muted-foreground, #60584f); font-family:var(--font-sans, \"Kevin Sans\", \"Microsoft YaHei\", \"PingFang SC\", sans-serif); font-size:14px; font-weight:500; line-height:20px; white-space:nowrap; cursor:pointer; } .ds-tab[aria-selected=\"true\"] { border-bottom-color:var(--primary, #a84422); color:var(--foreground, #2a2420); } .ds-tab:hover { color:var(--foreground, #2a2420); } .ds-tab:focus-visible { outline:2px solid var(--ring, #2c4f9e); outline-offset:3px; } .ds-tab:disabled { opacity:.5; pointer-events:none; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Looseleaf — paper, ink and a working desk",
+    "overview": "The user-selected Looseleaf component-library language makes CPA-Helper a quiet working desk: warm paper, sage surroundings, readable ink and small yellow highlights. Slightly uneven outlines give controls a human character while the layout remains orderly and dense enough for daily administration. Retain the existing CPA-Helper logo.\n\nSource data, quotas, permissions and missing-data truth take precedence over decoration. Keep labels, numbers and state explanations easy to compare. Dark mode is a warm-paper variant of the same workspace, with lighter ink and restrained highlights.",
+    "keyCharacteristics": [
+      "Warm paper and sage surfaces with clear ink contrast.",
+      "Controlled irregular corners and lightweight SVG ink outlines.",
+      "Compact controls, calm tables and tabular numbers.",
+      "Explicit operational states in both Chinese and English."
+    ],
+    "rules": [
+      {
+        "name": "The State Label Rule",
+        "body": "Pair status color with a label or value. A missing quota stays unavailable; it must never become a reassuring full bar.",
+        "section": "colors"
+      },
+      {
+        "name": "The Paper Depth Rule",
+        "body": "Keep shadows shallow and structural; preserve readable boundaries in dark mode and forced-color mode. Forced-color mode supplies a system-color border and removes card/button shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** reuse the Looseleaf variables, local font stack and existing logo.",
+      "**Do** preserve compact density, contained table scrolling and the upstream mobile row layout.",
+      "**Do** put source, quota window, permissions and missing-data explanations ahead of decoration.",
+      "**Do** keep focus, invalid, disabled and reduced-motion states visible and functional.",
+      "**Do** use irregular ink outlines where the existing button and card primitives supply them."
+    ],
+    "donts": [
+      "**Don't** substitute a generic cool-blue or glass visual system for the chosen paper-and-ink world.",
+      "**Don't** turn missing quota or usage data into zero, a full meter or a forecast.",
+      "**Don't** use color alone to communicate health, selection or errors.",
+      "**Don't** let decoration obscure labels, values or actionable state explanations.",
+      "**Don't** treat fixture screenshots or preview snippets as evidence of live accounts, routing or quota results."
+    ]
+  }
+}

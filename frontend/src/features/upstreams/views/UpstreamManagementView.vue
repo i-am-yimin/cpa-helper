@@ -92,6 +92,8 @@ import {
 
 import {
   discoverUpstreamModels,
+  isUpstreamDisabled,
+  withUpstreamEnabled,
   listUpstreamSections,
   replaceUpstreamSection,
   upstreamSectionNames,
@@ -108,6 +110,8 @@ interface SectionDefinition {
   description: string
   icon: Component
 }
+
+defineProps<{ embedded?: boolean }>()
 
 interface UpstreamTableRow {
   key: string
@@ -333,8 +337,7 @@ function upstreamTitle(section: UpstreamSection, item: UpstreamItem, index: numb
 }
 
 function upstreamDisabled(section: UpstreamSection, item: UpstreamItem): boolean {
-  if (section === 'openai-compatibility') return item.disabled === true
-  return stringArray(item, 'excluded-models').includes('*')
+  return isUpstreamDisabled(section, item)
 }
 
 function modelCount(item: UpstreamItem): number {
@@ -717,15 +720,7 @@ async function toggleUpstream(row: UpstreamTableRow, enabled: boolean) {
   mutatingKey.value = row.key
   try {
     const next = [...sections[activeSection.value]]
-    const item = { ...row.item }
-    if (activeSection.value === 'openai-compatibility') {
-      item.disabled = !enabled
-    } else {
-      const excluded = stringArray(item, 'excluded-models').filter((model) => model !== '*')
-      if (!enabled) excluded.unshift('*')
-      if (excluded.length > 0) item['excluded-models'] = excluded
-      else delete item['excluded-models']
-    }
+    const item = withUpstreamEnabled(activeSection.value, row.item, enabled)
     next.splice(row.index, 1, item)
     await replaceUpstreamSection(activeSection.value, next, apiVersion.value, configRevision.value)
     sections[activeSection.value] = next
@@ -778,7 +773,8 @@ void loadUpstreams()
 <template>
   <section class="page upstream-page">
     <div class="page-toolbar upstream-header">
-      <h1 data-page-title class="page-title">{{ t('上游管理', 'Upstream Management') }}</h1>
+      <h1 v-if="!embedded" data-page-title class="page-title">{{ t('上游管理', 'Upstream Management') }}</h1>
+      <h2 v-else class="section-title">{{ t('API 接入配置', 'API connections') }}</h2>
       <Button variant="outline" :disabled="isLoading" @click="loadUpstreams(true)">
         <Spinner v-if="isLoading" data-icon="inline-start" />
         <RefreshCw v-else data-icon="inline-start" />

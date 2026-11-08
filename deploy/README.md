@@ -88,7 +88,26 @@ The credential page queries Antigravity's `retrieveUserQuotaSummary` through
 CLIProxyAPI's authenticated server-side `api-call`. It shows the groups and quota
 windows returned by the provider, including remaining percentages and reset times.
 OAuth tokens stay in CLIProxyAPI; project lookup and credential downloads remain
-server-side. Quota queries never change credential status, priority or routing.
+server-side. Quota queries never change credential status or its global priority.
+They publish per-model-group routing observations to the native scheduler.
+
+The immutable Helper image includes a Linux glibc scheduler built for the Debian
+Core image. Before downtime, deployment verifies the Core libc and extracts this
+release's plugin into its own `deploy/plugins` directory. Compose mounts that
+directory read-only; only `helper/scheduler` is shared for quota snapshots and
+routing heartbeats, not the user database or OAuth files. The snapshot directory
+is covered by the existing Helper-state backup and the old release keeps its own
+plugin mount for rollback.
+
+Post-start bootstrap enables only `cpa-group-scheduler` using the V8 strong ETag
+and verifies that Core reports it registered and effective. Conflicting enabled
+plugins, unsupported routing strategies or failed registration abort deployment
+and invoke the existing rollback. The original Codex policy remains in place.
+Background refresh is explicitly enabled by the configured snapshot path and
+continues without an open browser. The deployment health check makes at most one
+one-token model request when matching healthy groups exist and reports whether
+the native routing heartbeat advanced; provider quota errors are distinguished
+from plugin load failures.
 
 Successful queries are cached for five minutes or until the next reset, whichever
 comes first. Concurrent queries share a request. Failures back off for one minute

@@ -316,19 +316,26 @@ export interface CodexKeeperResetCredits {
 
 export interface AntigravityQuotaSnapshot {
   groups: Array<{
+    id: string
     label: string
+    priority: number
+    effective_priority: number
+    model_patterns: string[]
+    degraded: boolean
     buckets: Array<{
       id: string
       label: string
       window: string
       remaining_percent: number
       reset_at: string | null
+      usage: CodexKeeperQuotaWindowUsage | null
     }>
   }>
   checked_at: string | null
   attempted_at: string
   error: string | null
   stale: boolean
+  usage_error?: string | null
 }
 
 export interface CodexKeeperAccount {

@@ -46,6 +46,11 @@ func TestAntigravityQuotaRequiresAccountStatusAccessAndAdminForForcedRefresh(t *
 	requestJSON(t, handler, http.MethodPut, "/api/settings", map[string]any{"allow_user_account_status": true}, admin, nil)
 	requestJSON(t, handler, http.MethodGet, path, nil, member, nil)
 	requestJSONExpectStatus(t, handler, http.MethodPost, path, nil, member, http.StatusForbidden)
+	requestJSONExpectStatus(t, handler, http.MethodGet, "/api/upstreams/group-scheduler", nil, member, http.StatusForbidden)
+	requestJSONExpectStatus(t, handler, http.MethodPut, "/api/upstreams/group-scheduler", map[string]any{"auth_name": "ag.json", "group_id": "Gemini", "priority": 8, "model_patterns": []string{"gemini-*"}}, member, http.StatusForbidden)
+	requestJSON(t, handler, http.MethodGet, "/api/upstreams/group-scheduler", nil, admin, nil)
+	requestJSON(t, handler, http.MethodPut, "/api/upstreams/group-scheduler", map[string]any{"auth_name": "ag.json", "group_id": "Gemini", "priority": 8, "model_patterns": []string{"gemini-*"}}, admin, nil)
+	requestJSONExpectStatus(t, handler, http.MethodPut, "/api/upstreams/group-scheduler", map[string]any{"auth_name": "ag.json", "group_id": "Gemini", "priority": -1, "model_patterns": []string{"gemini-*"}}, admin, http.StatusUnprocessableEntity)
 	requestJSON(t, handler, http.MethodPost, path, nil, admin, nil)
 	requestJSONExpectStatus(t, handler, http.MethodDelete, path, nil, admin, http.StatusMethodNotAllowed)
 }

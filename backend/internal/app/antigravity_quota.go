@@ -23,16 +23,22 @@ var antigravityQuotaURLs = []string{
 }
 
 type antigravityQuotaBucket struct {
-	ID               string     `json:"id"`
-	Label            string     `json:"label"`
-	Window           string     `json:"window"`
-	RemainingPercent float64    `json:"remaining_percent"`
-	ResetAt          *time.Time `json:"reset_at"`
+	ID               string                          `json:"id"`
+	Label            string                          `json:"label"`
+	Window           string                          `json:"window"`
+	RemainingPercent float64                         `json:"remaining_percent"`
+	ResetAt          *time.Time                      `json:"reset_at"`
+	Usage            *keeperQuotaWindowUsageResponse `json:"usage"`
 }
 
 type antigravityQuotaGroup struct {
-	Label   string                   `json:"label"`
-	Buckets []antigravityQuotaBucket `json:"buckets"`
+	ID                string                   `json:"id"`
+	Label             string                   `json:"label"`
+	Buckets           []antigravityQuotaBucket `json:"buckets"`
+	Priority          int                      `json:"priority"`
+	EffectivePriority int                      `json:"effective_priority"`
+	ModelPatterns     []string                 `json:"model_patterns"`
+	Degraded          bool                     `json:"degraded"`
 }
 
 type antigravityQuotaSnapshot struct {
@@ -41,6 +47,7 @@ type antigravityQuotaSnapshot struct {
 	AttemptedAt time.Time               `json:"attempted_at"`
 	Error       *string                 `json:"error"`
 	Stale       bool                    `json:"stale"`
+	UsageError  *string                 `json:"usage_error"`
 }
 
 type antigravityQuotaEntry struct {
@@ -149,9 +156,13 @@ func (a *App) getAntigravityQuota(ctx context.Context, name string, force bool) 
 		return antigravityQuotaSnapshot{}, validationError("凭证缺少 auth_index，请刷新凭证列表")
 	}
 	key := cfg.Collector.CLIProxyURL + "\x00" + name + "\x00" + *index + "\x00" + keeperFirstString(file["modtime"], file["updated_at"])
-	return a.antigravityQuotaCache.get(ctx, key, force, func() antigravityQuotaSnapshot {
+	snapshot, err := a.antigravityQuotaCache.get(ctx, key, force, func() antigravityQuotaSnapshot {
 		return a.fetchAntigravityQuota(ctx, cfg, file, *index)
 	})
+	if err != nil {
+		return snapshot, err
+	}
+	return a.enrichAntigravityQuota(ctx, cfg, name, files, snapshot)
 }
 
 func antigravityProjectID(file map[string]any) string {
@@ -247,7 +258,7 @@ func parseAntigravityQuotaGroups(payload map[string]any) []antigravityQuotaGroup
 		if label == "" {
 			label = fmt.Sprintf("Quota Group %d", gi+1)
 		}
-		parsed := antigravityQuotaGroup{Label: label, Buckets: []antigravityQuotaBucket{}}
+		parsed := antigravityQuotaGroup{ID: keeperFirstString(group["groupId"], group["group_id"], group["id"], label), Label: label, Buckets: []antigravityQuotaBucket{}}
 		buckets, _ := group["buckets"].([]any)
 		for bi, rawBucket := range buckets {
 			bucket, ok := rawBucket.(map[string]any)

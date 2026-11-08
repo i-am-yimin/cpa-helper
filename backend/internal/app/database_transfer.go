@@ -85,7 +85,7 @@ func TransferSQLite(ctx context.Context, source string, verifyOnly bool, out io.
 		if objects != 0 {
 			return fmt.Errorf("target public schema is not empty; nothing was overwritten (use a new database, do not run migrate first)")
 		}
-		schema, err := migrations.PostgresFS.ReadFile(fmt.Sprintf("postgres/%d_baseline.sql", migrations.PostgreSQLBaselineVersion))
+		schema, err := migrations.PostgresImportSchema()
 		if err != nil {
 			return err
 		}

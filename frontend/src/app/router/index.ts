@@ -83,13 +83,13 @@ export const router = createRouter({
         {
           path: 'admin/credential-mgmt',
           name: 'admin-credential-mgmt',
-          component: () => import('@/features/codex-keeper/views/CodexKeeperStatusView.vue'),
+          redirect: { path: '/admin/upstreams', query: { tab: 'credentials' } },
           meta: { requiresAdmin: true },
         },
         {
           path: 'admin/upstreams',
           name: 'admin-upstreams',
-          component: () => import('@/features/upstreams/views/UpstreamManagementView.vue'),
+          component: () => import('@/features/upstreams/views/UpstreamHubView.vue'),
           meta: { requiresAdmin: true },
         },
         {

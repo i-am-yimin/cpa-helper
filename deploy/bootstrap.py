@@ -8,6 +8,8 @@ import secrets
 import sys
 import urllib.request
 
+from group_scheduler import prepare_scheduler, configure_scheduler, check_scheduler, probe_scheduler
+
 ROOT = Path('/opt/ai-gateway')
 SECRET = ROOT / 'secrets' / 'bootstrap.json'
 BASE = 'http://127.0.0.1:18317/api'
@@ -62,10 +64,13 @@ plugins:
         with config.open('x') as handle:
             handle.write(content)
         os.chmod(str(config), 0o600)
+    prepare_scheduler(ROOT, Path(__file__).resolve().parent, value['management_key'])
     print('Persistent directories and private configuration are ready.')
 
 
 def configure():
+    value = json.loads(SECRET.read_text())
+    configure_scheduler(value['management_key'], Path(__file__).resolve().parent)
     marker = ROOT / 'secrets' / 'configured'
     if marker.exists():
         print('Existing administrator and settings retained.')
@@ -103,6 +108,7 @@ def configure():
 
 def check():
     value = json.loads(SECRET.read_text())
+    check_scheduler(value['management_key'])
     req = urllib.request.Request('http://127.0.0.1:8317/v1/models', headers={
         'Authorization': 'Bearer ' + value['probe_api_key']})
     with urllib.request.urlopen(req, timeout=20) as response:
@@ -113,6 +119,7 @@ def check():
         json.load(response)
     print('Authenticated model endpoint and internal management endpoint passed; model count: %d'
           % len(models.get('data', [])))
+    probe_scheduler(ROOT, value['probe_api_key'], models)
 
 
 if __name__ == '__main__':

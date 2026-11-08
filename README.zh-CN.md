@@ -54,7 +54,9 @@ CPA-Helper 是面向 CLIProxyAPI / CPA 用户的本地自托管多用户管理�
 - **CLIProxyAPI / CPAMC 集成**：配置服务地址、管理密钥、usage 队列和本地采集参数，将远端 usage 事件落入配置的数据库。
 - **Codex auth file 巡检**：支持 Cron 调度、额度阈值、只检查不修改、按条件扫描、并发 Worker、优先级规则、账号启停和删除维护。
 - **数据库选择**：默认使用 SQLite，可通过 `CPA_HELPER_DATA_DIR` 覆盖数据路径；配置 `CPA_HELPER_DATABASE_URL` 可使用 PostgreSQL。已有数据需要显式校验导入，详见[完整迁移流程](docs/postgresql-migration.md)。
-- **现代化管理界面**：基于 Vue 3、Naive UI、ECharts 和 lucide 图标，支持浅色、暗色和跟随系统主题。
+- **现代化管理界面**：基于 Vue 3、Reka UI、Unovis 和 lucide 图标，使用 Looseleaf 纸张与墨线风格，支持浅色、暗色和跟随系统主题。
+
+统一上游与凭证、Antigravity 分组额度与独立优先级、CPA 调度插件的实现口径和接入方式见[分组调度说明](docs/antigravity-group-scheduler.md)。
 
 ## 接入教程
 
@@ -158,7 +160,7 @@ CPA-Helper 是面向 CLIProxyAPI / CPA 用户的本地自托管多用户管理�
 ## 技术栈
 
 - **后端**：Go 标准库 HTTP、SQLite（modernc）/ PostgreSQL（pgx）、robfig/cron。
-- **前端**：Vue 3、Vite、TypeScript、Vue Router、Naive UI、ECharts、lucide-vue-next。
+- **前端**：Vue 3、Vite、TypeScript、Vue Router、Reka UI、Unovis、@lucide/vue。
 - **运行数据**：默认写入根目录 `data/`，SQLite 数据库位于 `data/db/cpa_helper.sqlite3`。
 - **接口风格**：后端统一提供 `/api/*` 接口，前端开发服务器通过 Vite proxy 转发到 `http://127.0.0.1:18317`。
 

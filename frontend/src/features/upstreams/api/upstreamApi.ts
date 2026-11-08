@@ -12,6 +12,24 @@ export const upstreamSectionNames = [
 export type UpstreamSection = (typeof upstreamSectionNames)[number]
 export type UpstreamItem = Record<string, unknown>
 
+export function isUpstreamDisabled(section: UpstreamSection, item: UpstreamItem): boolean {
+  return section === 'openai-compatibility'
+    ? item.disabled === true
+    : Array.isArray(item['excluded-models']) && item['excluded-models'].includes('*')
+}
+
+export function withUpstreamEnabled(section: UpstreamSection, item: UpstreamItem, enabled: boolean): UpstreamItem {
+  const next = { ...item }
+  if (section === 'openai-compatibility') next.disabled = !enabled
+  else {
+    const excluded = Array.isArray(item['excluded-models']) ? item['excluded-models'].filter(model => typeof model === 'string' && model !== '*') : []
+    if (!enabled) excluded.unshift('*')
+    if (excluded.length) next['excluded-models'] = excluded
+    else delete next['excluded-models']
+  }
+  return next
+}
+
 export interface DiscoveredUpstreamModel {
   name: string
   alias?: string

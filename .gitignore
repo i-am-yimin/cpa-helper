@@ -26,6 +26,8 @@ __pycache__/
 .mypy_cache/
 .playwright-cli/
 coverage/
+.taste-skill/
+.impeccable/review/
 *.tsbuildinfo
 data/
 *.pyc

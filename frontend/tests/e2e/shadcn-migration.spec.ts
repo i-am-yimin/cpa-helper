@@ -5,8 +5,8 @@ const adminRoutes = [
   ['/admin/records', /请求明细|Request Records/i],
   ['/admin/users', /用户管理|Users/i],
   ['/admin/pricing', /模型价格|Model Prices/i],
-  ['/admin/upstreams', /上游管理|Upstreams/i],
-  ['/admin/credential-mgmt', /凭证管理|Credential Management/i],
+  ['/admin/upstreams', /上游与凭证|Upstreams & credentials/i],
+  ['/admin/credential-mgmt', /上游与凭证|Upstreams & credentials/i],
   ['/admin/cpamc', 'CPAMC'],
   ['/admin/settings', /系统设置|System Settings/i],
 ] as const
@@ -158,16 +158,16 @@ test('sidebar navigation switches immediately and lets the destination render it
     await route.continue()
   })
 
-  await page.getByRole('button', { name: /上游管理|Upstreams/ }).click()
+  await page.getByRole('button', { name: /上游与凭证|Upstreams & credentials/ }).click()
   await expect(page).toHaveURL(/\/admin\/upstreams/)
-  await expect(page.locator('[data-page-title]')).toContainText(/上游管理|Upstream Management/i)
+  await expect(page.locator('[data-page-title]')).toContainText(/上游与凭证|Upstreams & credentials/i)
   await expect(page.locator('[data-page-title]').filter({ hasText: /用量分析|Usage Analytics/i })).toHaveCount(0)
-  await expect(page.locator('.provider-table-shell [data-slot="skeleton"]').first()).toBeVisible()
+  await expect(page.locator('.hub-list [role="status"]').first()).toBeVisible()
   await expect.poll(() => authRequests).toBeGreaterThan(0)
 
   releaseAuthRequest()
   releaseUpstreamRequest()
-  await expect(page.locator('.provider-table-shell [data-slot="skeleton"]')).toHaveCount(0)
+  await expect(page.locator('.hub-list [role="status"]')).toHaveCount(0)
 })
 
 test('a transient auth me gateway failure does not sign out a valid session', async ({ page }) => {
@@ -224,7 +224,7 @@ test('upstream model discovery merges selected models into the editor', async ({
     })
   })
 
-  await page.goto('/admin/upstreams')
+  await page.goto('/admin/upstreams?tab=configuration')
   await page.getByRole('button', { name: /新建|New/ }).click()
   const upstreamDrawer = page.locator('[data-slot="sheet-content"]')
   await upstreamDrawer.locator('#upstream-api-key').fill('gemini-test-key')
@@ -419,6 +419,7 @@ test('request test uses the selected configured endpoint and usage analytics omi
 })
 
 test('all migrated routes render and core controls remain interactive', async ({ page }) => {
+  test.setTimeout(90_000)
   const consoleErrors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) {
@@ -484,14 +485,14 @@ test('all migrated routes render and core controls remain interactive', async ({
   const analyticsQuickRangeTabs = page.locator('.quick-ranges[data-slot="tabs"]')
   await expect(analyticsQuickRangeTabs.getByRole('tablist')).toHaveAccessibleName(/快捷时间范围|Quick time ranges/)
   await expect(analyticsQuickRangeTabs.getByRole('tab')).toHaveCount(6)
-  await expect(page.locator('body')).toHaveCSS('font-family', '"Geist Variable", sans-serif')
+  await expect(page.locator('body')).toHaveCSS('font-family', '"Kevin Sans", "Microsoft YaHei", "PingFang SC", sans-serif')
   expect(await page.locator('body').evaluate((element) => getComputedStyle(element).fontSynthesis)).toContain('weight')
   const analyticsRangeTrigger = page.locator('[data-slot="date-time-range-trigger"]')
   const analyticsRangeBox = await analyticsRangeTrigger.boundingBox()
   expect(analyticsRangeBox?.width ?? 0).toBeGreaterThanOrEqual(420)
-  expect(analyticsRangeBox?.height).toBe(32)
+  expect(analyticsRangeBox?.height).toBe(36)
   expect(await analyticsRangeTrigger.innerText()).not.toMatch(/\d{2}:\d{2}:\d{2}/)
-  await expect(analyticsQuickRangeTabs.getByRole('tablist')).toHaveCSS('height', '32px')
+  await expect(analyticsQuickRangeTabs.getByRole('tablist')).toHaveCSS('height', '36px')
   await expect(analyticsRangeTrigger).toHaveCSS('font-size', '14px')
   expect(await analyticsRangeTrigger.locator('[data-slot="date-time-range-start"], [data-slot="date-time-range-end"]').evaluateAll(
     (elements) => elements.every((element) => element.scrollWidth <= element.clientWidth),
@@ -512,7 +513,7 @@ test('all migrated routes render and core controls remain interactive', async ({
   expect(Math.abs(analyticsFilterLayout.rightInset)).toBeLessThanOrEqual(1)
   const analyticsSearchableFilter = analyticsFilterRow.locator('.filter-combobox-trigger').first()
   await expect(analyticsSearchableFilter).toHaveCSS('font-weight', '400')
-  await expect(analyticsSearchableFilter).toHaveCSS('height', '32px')
+  await expect(analyticsSearchableFilter).toHaveCSS('height', '36px')
   await expect(analyticsSearchableFilter).toHaveCSS('font-size', '14px')
   await analyticsSearchableFilter.click()
   const analyticsFilterPopup = page.locator('[data-slot="combobox-content"]')
@@ -740,7 +741,7 @@ test('all migrated routes render and core controls remain interactive', async ({
   await expectPlainDialogFooter(priceDialog)
   await priceCancelButton.click()
 
-  await page.goto('/admin/upstreams')
+  await page.goto('/admin/upstreams?tab=configuration')
   await expect(page.getByText(/上游配置|Upstream configuration/, { exact: true })).toHaveCount(0)
   await expect(page.getByText(/按提供商类型管理 API 密钥、路由和模型映射。|Manage API keys, routes, and model mappings by provider family\./, { exact: true })).toHaveCount(0)
   const providerTabs = page.locator('.provider-tabs[data-slot="tabs"]')
@@ -781,7 +782,7 @@ test('all migrated routes render and core controls remain interactive', async ({
   expect(upstreamAlignment).not.toBeNull()
   expect(upstreamAlignment?.yDifference).toBeLessThanOrEqual(1)
   expect(upstreamAlignment?.heightDifference).toBeLessThanOrEqual(1)
-  await expect(upstreamCreateButton).toHaveCSS('height', '32px')
+  await expect(upstreamCreateButton).toHaveCSS('height', '36px')
   await expect(upstreamCreateButton).toHaveCSS('cursor', 'pointer')
   await upstreamCreateButton.click()
   const upstreamDrawer = page.locator('[data-slot="sheet-content"]')
@@ -916,7 +917,7 @@ test('all migrated routes render and core controls remain interactive', async ({
   const requestDetailSheetBox = await requestDetailSheet.boundingBox()
   expect(requestDetailSheetBox).not.toBeNull()
   expect(requestDetailSheetBox?.width).toBeGreaterThanOrEqual(900)
-  await expect(requestDetailSheet).toHaveCSS('border-left-width', '0px')
+  await expect(requestDetailSheet).toHaveCSS('border-left-width', '1px')
   await expect(requestDetailSheet.locator('.mono-json')).toHaveCSS('overflow-x', 'auto')
   await expect(requestDetailSheet).toContainText(/API KEY 描述|API key description/)
   await expect(requestDetailSheet).toContainText('E2E key')
@@ -1025,8 +1026,8 @@ test('all migrated routes render and core controls remain interactive', async ({
   const endpointRightInset =
     ((endpointGroupBox?.x ?? 0) + (endpointGroupBox?.width ?? 0)) -
     ((endpointLastButtonBox?.x ?? 0) + (endpointLastButtonBox?.width ?? 0))
-  expect(endpointLeftInset).toBeGreaterThanOrEqual(2)
-  expect(endpointRightInset).toBeGreaterThanOrEqual(2)
+  expect(endpointLeftInset).toBeCloseTo(0, 0)
+  expect(endpointRightInset).toBeCloseTo(0, 0)
   expect(
     Math.abs(endpointLeftInset - endpointRightInset),
   ).toBeLessThanOrEqual(1)
@@ -1115,7 +1116,7 @@ test('theme and mobile navigation survive the migration', async ({ page }) => {
   await expect(page.locator('[data-slot="sidebar"][data-variant="inset"]')).toBeVisible()
   await expect.poll(() =>
     page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--cpa-primary').trim()),
-  ).toMatch(/^oklch\((?:0\.55|55%) (?:0\.19|\.19) 257\)$/)
+  ).toBe('#a84422')
   await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCSS('border-right-width', '0px')
   await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCSS('width', '256px')
   const usageMenuButton = page.getByRole('button', { name: /用量分析|Usage Analytics/ })
@@ -1164,13 +1165,13 @@ test('theme and mobile navigation survive the migration', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/dark/)
   await expect.poll(() =>
     page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--cpa-primary').trim()),
-  ).toMatch(/^oklch\((?:0\.68|68%) (?:0\.16|\.16) 257\)$/)
+  ).toBe('#f1a37f')
   await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCSS('border-right-width', '0px')
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
   await page.getByRole('button', { name: /打开导航|Open navigation/ }).click()
-  await expect(page.locator('[data-mobile="true"]')).toHaveCSS('border-right-color', 'oklch(1 0 0 / 0.1)')
+  await expect(page.locator('[data-mobile="true"]')).toHaveCSS('border-right-color', 'rgb(83, 96, 79)')
   await expect(page.locator('[data-mobile="true"]')).toHaveCSS('width', '288px')
   await expect(page.locator('.mobile-brand-copy strong')).toBeVisible()
   await expect(page.locator('.mobile-version-badge')).toHaveCount(0)

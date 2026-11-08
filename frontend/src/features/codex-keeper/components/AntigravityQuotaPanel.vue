@@ -4,7 +4,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { RefreshCw } from '@lucide/vue'
 import { useI18n } from '@/shared/i18n'
 import type { AntigravityQuotaSnapshot } from '@/shared/types/api'
-import { formatDateTime } from '@/shared/utils/format'
+import { formatCompact, formatDateTime, formatInteger, formatUsd } from '@/shared/utils/format'
 
 defineProps<{
   quota?: AntigravityQuotaSnapshot
@@ -45,7 +45,7 @@ function windowLabel(window: string, fallback: string): string {
     <p v-if="quota?.error && !disabled" role="status" class="text-xs text-destructive">{{ credentialServerText(quota.error) }}</p>
     <template v-if="!disabled">
       <section v-for="(group, index) in quota?.groups ?? []" :key="`${index}-${group.label}`" class="space-y-1.5" :class="{ 'opacity-60': quota?.stale }">
-        <h4 class="text-xs font-medium break-words">{{ group.label }}</h4>
+        <h4 class="flex flex-wrap items-center justify-between gap-2 text-xs font-medium break-words"><span>{{ group.label }}</span><span v-if="group.effective_priority !== undefined" class="font-normal">{{ t('分组优先级', 'Group priority') }} {{ group.priority }} → {{ group.effective_priority }} <span v-if="group.degraded">{{ t('额度降级', 'Quota fallback') }}</span></span></h4>
         <div v-for="bucket in group.buckets" :key="bucket.id" class="space-y-1" :title="bucket.label">
           <div class="flex justify-between gap-2 text-xs">
             <span>{{ windowLabel(bucket.window, bucket.label) }}</span>
@@ -57,8 +57,21 @@ function windowLabel(window: string, fallback: string): string {
           <p class="text-[11px] text-muted-foreground tabular-nums">
             {{ t('重置', 'Resets') }}: {{ bucket.reset_at ? formatDateTime(bucket.reset_at) : t('上游未提供', 'Not provided') }}
           </p>
+          <div v-if="bucket.usage" class="ag-window-usage" :class="{ 'opacity-60': bucket.usage.stale }">
+            <span>{{ t('请求', 'Requests') }} <strong>{{ formatInteger(bucket.usage.records) }}</strong></span>
+            <span>Tokens <strong>{{ formatCompact(bucket.usage.total_tokens) }}</strong></span>
+            <span>{{ t('费用', 'Cost') }} <strong>{{ formatUsd(bucket.usage.estimated_cost_usd) }}</strong></span>
+            <span v-if="bucket.usage.unpriced_records">{{ t('未计价', 'Unpriced') }} {{ bucket.usage.unpriced_records }}</span>
+          </div>
+          <p v-else class="text-xs text-muted-foreground">{{ !bucket.reset_at ? t('缺少重置时间，无法统计窗口用量', 'Window usage requires a reset time') : t('窗口用量尚不可用，请检查模型分组映射', 'Window usage unavailable; check model group mappings') }}</p>
         </div>
       </section>
+      <p v-if="quota?.usage_error" role="status" class="text-xs text-destructive">{{ quota.usage_error }}</p>
     </template>
   </div>
 </template>
+
+<style scoped>
+.ag-window-usage { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ag-window-usage strong { margin-inline-start: 4px; }
+</style>

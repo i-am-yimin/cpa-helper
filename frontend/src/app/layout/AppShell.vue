@@ -157,8 +157,7 @@ const adminMenuItems = computed<NavigationItem[]>(() => [
   { label: t('请求明细', 'Request Records'), key: '/admin/records', icon: List },
   { label: t('用户管理', 'Users'), key: '/admin/users', icon: Users },
   { label: t('模型价格', 'Model Prices'), key: '/admin/pricing', icon: DollarSign },
-  { label: t('上游管理', 'Upstreams'), key: '/admin/upstreams', icon: Network },
-  { label: t('凭证管理', 'Credential Management'), key: '/admin/credential-mgmt', icon: ListChecks },
+  { label: t('上游与凭证', 'Upstreams & credentials'), key: '/admin/upstreams', icon: Network },
   { label: 'CPAMC', key: '/admin/cpamc', icon: Monitor },
   { label: t('系统设置', 'System Settings'), key: '/admin/settings', icon: Settings },
 ])

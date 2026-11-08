@@ -42,20 +42,14 @@ defineProps<{
   align-items: center;
   overflow: hidden;
   padding: 72px 48px;
-  background:
-    radial-gradient(circle at 18% 18%, color-mix(in oklch, var(--primary-foreground) 24%, transparent), transparent 32%),
-    radial-gradient(circle at 82% 78%, color-mix(in oklch, var(--primary-foreground) 18%, transparent), transparent 38%),
-    linear-gradient(145deg, color-mix(in oklch, var(--primary) 74%, var(--background)) 0%, var(--primary) 56%, color-mix(in oklch, var(--primary) 86%, black) 100%);
+  background: var(--ll-desk);
 }
 
 .auth-brand-panel::before {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(color-mix(in oklch, var(--primary-foreground) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklch, var(--primary-foreground) 5%, transparent) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(135deg, black, transparent 72%);
+  border: 1px solid color-mix(in srgb, var(--ll-ink) 35%, transparent);
+  inset: 24px;
   content: "";
 }
 
@@ -81,13 +75,13 @@ defineProps<{
 
 .brand-word-cpa {
   justify-self: start;
-  color: var(--primary-foreground);
+  color: var(--ll-ink);
   font-size: 148px;
 }
 
 .brand-word-helper {
   justify-self: end;
-  color: color-mix(in oklch, var(--primary-foreground) 78%, var(--primary));
+  color: var(--ll-ink);
   font-size: 116px;
 }
 
@@ -98,9 +92,7 @@ defineProps<{
   justify-items: center;
   gap: 24px;
   padding: 48px;
-  background:
-    radial-gradient(circle at 88% 10%, color-mix(in oklch, var(--primary) 10%, transparent), transparent 28%),
-    var(--background);
+  background: var(--ll-paper);
 }
 
 .brand-mark {
