@@ -1,0 +1,120 @@
+/* BoardUI's MIT-licensed theme and typography live in ./boardui/.
+   Vue/Reka component adaptation: https://github.com/BoardUI/boardui.
+   Existing application aliases map to the same semantic design tokens. */
+:root, :root.dark {
+  --font-inter: "Inter Variable";
+  --font-sans: "Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-family: var(--font-sans);
+  --background: var(--color-background-secondary-default);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-background-primary-default);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-background-primary-default);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-600);
+  --primary-foreground: var(--color-text-white);
+  --secondary: var(--color-background-secondary-default);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-background-secondary-default);
+  --muted-foreground: var(--color-neutral-600);
+  --accent: var(--color-accent-50);
+  --accent-foreground: var(--color-accent-700);
+  --destructive: var(--color-text-destructive);
+  --border: var(--color-border-button-default);
+  --input: var(--color-border-button-hover);
+  --ring: var(--color-border-focus-ring);
+  --radius: 0.625rem;
+  --sidebar: var(--color-background-primary-default);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--color-background-secondary-default);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --chart-1: var(--color-teal-500);
+  --chart-2: var(--color-lime-600);
+  --chart-3: var(--color-pink-500);
+  --chart-4: var(--color-sky-500);
+  --chart-5: var(--color-purple-500);
+  --cpa-shell-bg: var(--background);
+  --cpa-canvas: var(--background);
+  --cpa-glass: var(--card);
+  --cpa-shadow-card: var(--shadow-card);
+  --cpa-shadow-soft: var(--shadow-dropdown);
+  --cpa-success: var(--color-green-700);
+  --cpa-warning: var(--color-amber-800);
+  /* Keep white button labels readable throughout the gradient and hover. */
+  --gradient-button-primary-default: linear-gradient(180deg, var(--color-accent-600), var(--color-accent-700));
+  --gradient-button-primary-hover: linear-gradient(180deg, var(--color-accent-600), var(--color-accent-600));
+  --gradient-button-primary-active: linear-gradient(180deg, var(--color-accent-700), var(--color-accent-800));
+}
+:root.dark {
+  color-scheme: dark;
+  --muted-foreground: var(--color-neutral-400);
+  --accent: color-mix(in srgb, var(--color-accent-500) 15%, var(--card));
+  --accent-foreground: var(--color-accent-300);
+  --primary: var(--color-accent-400);
+  --cpa-success: var(--color-green-400);
+  --cpa-warning: var(--color-amber-400);
+}
+body { font-family: var(--font-sans); }
+::selection { background: var(--accent); color: var(--accent-foreground); }
+input, textarea { caret-color: var(--primary); }
+* { scrollbar-color: var(--input) transparent; scrollbar-width: thin; }
+[data-slot="button"] { border-radius: 10px; transition-duration: 160ms; }
+[data-slot="button"][data-size="sm"], [data-slot="button"][data-size="icon-sm"] { border-radius: 8px; }
+[data-slot="button"][data-size="xs"], [data-slot="button"][data-size="icon-xs"] { border-radius: 4px; }
+[data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="input-group"] {
+  min-height: 36px;
+  border-color: var(--input);
+  border-radius: 10px;
+  background-color: var(--card);
+  box-shadow: var(--inset-shadow-xs);
+}
+[data-slot="input"]::placeholder, [data-slot="textarea"]::placeholder { color: var(--muted-foreground); }
+[data-slot="card"], .paper-panel, .panel {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--cpa-shadow-card);
+  --tw-ring-shadow: 0 0 #0000;
+}
+[data-slot="card-title"] { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+[data-slot="dialog-content"], [data-slot="sheet-content"] {
+  border: 1px solid var(--border);
+  background: var(--popover);
+  border-radius: 24px;
+}
+[data-slot="popover-content"], [data-slot="dropdown-menu-content"], [data-slot="select-content"] {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover);
+  box-shadow: var(--shadow-dropdown);
+}
+[data-slot="table-head"] { color: var(--muted-foreground); font-weight: 500; background: var(--muted); }
+[data-slot="table-cell"] { font-variant-numeric: tabular-nums; }
+[data-slot="table-row"] { border-color: var(--color-border-table); }
+[data-slot="badge"] { border-radius: 999px; font-weight: 500; }
+[data-slot="tabs-list"] { background: var(--muted); border: 1px solid var(--border); border-radius: 12px; padding: 4px; height: auto; gap: 4px; }
+[data-slot="tabs-trigger"] { border-radius: 8px; padding: 8px 12px; color: var(--muted-foreground); }
+[data-slot="tabs-trigger"][data-state="active"] { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-card); }
+.app-shell .app-header { background: var(--card); border-bottom-color: var(--border); backdrop-filter: none; }
+.app-shell .content-scroll { background: var(--background); }
+.app-shell .app-sidebar [data-slot="sidebar-inner"] { background: var(--sidebar); }
+.app-shell [data-sidebar="menu-button"] { border-radius: 10px; }
+.app-shell [data-sidebar="menu-button"][data-active="true"] { background: var(--sidebar-accent); color: var(--foreground); font-weight: 600; }
+.app-shell .brand-mark { background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.app-shell .brand-copy > strong { font-family: var(--font-sans); font-size: 18px; letter-spacing: -0.025em; }
+.app-shell .brand-copy > span { color: var(--muted-foreground); }
+.app-shell .sidebar-brand-header { border-bottom: 1px solid var(--border); padding-block: 20px; margin-bottom: 8px; }
+.app-shell .sidebar-brand-button { height: auto; min-height: 40px; }
+.app-shell .route-progress::before { background: var(--primary); }
+.auth-shell { background: var(--background); }
+.quick-ranges [data-slot="tabs-list"], .quick-ranges [data-slot="tabs-trigger"] { height: 36px; padding-block: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+@media (forced-colors: active) {
+  [data-slot="button"], [data-slot="card"], .paper-panel { border: 1px solid CanvasText; box-shadow: none; }
+}

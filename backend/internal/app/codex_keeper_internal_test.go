@@ -1567,7 +1567,7 @@ func TestKeeperRunSkipsInFlightAuthBeforeProcessing(t *testing.T) {
 	}
 }
 
-func TestConditionalKeeperRunUsesAutomaticPriorityPolicy(t *testing.T) {
+func TestConditionalKeeperRunDoesNotInferQuotaPauseFromLegacyThreshold(t *testing.T) {
 	t.Setenv("CPA_HELPER_DATA_DIR", t.TempDir())
 
 	priorityPatches := []int{}
@@ -1632,18 +1632,18 @@ func TestConditionalKeeperRunUsesAutomaticPriorityPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("conditional run: %v", err)
 	}
-	if stats.PriorityDegraded != 1 {
-		t.Fatalf("priority_degraded = %d, want 1", stats.PriorityDegraded)
+	if stats.PriorityDegraded != 0 {
+		t.Fatalf("priority_degraded = %d, want 0 without an explicit guard", stats.PriorityDegraded)
 	}
-	if len(priorityPatches) != 1 || priorityPatches[0] != -1 {
-		t.Fatalf("priority patches = %#v, want [-1]", priorityPatches)
+	if len(priorityPatches) != 0 {
+		t.Fatalf("priority patches = %#v, want none", priorityPatches)
 	}
 	if got := countKeeperRows(t, app, `SELECT COUNT(*) FROM codex_keeper_runs`); got != 0 {
 		t.Fatalf("keeper run rows = %d, want 0 because conditional refresh is not persisted", got)
 	}
 }
 
-func TestManualKeeperRefreshUsesAutomaticPriorityPolicy(t *testing.T) {
+func TestManualKeeperRefreshAppliesPlanDefaultsWithoutRevivingHistoricalMinusOne(t *testing.T) {
 	t.Setenv("CPA_HELPER_DATA_DIR", t.TempDir())
 
 	authDetails := map[string]map[string]any{
@@ -1760,16 +1760,14 @@ func TestManualKeeperRefreshUsesAutomaticPriorityPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("manual refresh: %v", err)
 	}
-	if stats.PriorityDegraded != 1 {
-		t.Fatalf("priority_degraded = %d, want 1", stats.PriorityDegraded)
+	if stats.PriorityDegraded != 0 {
+		t.Fatalf("priority_degraded = %d, want 0", stats.PriorityDegraded)
 	}
-	if stats.PriorityRestored != 2 {
-		t.Fatalf("priority_restored = %d, want 2", stats.PriorityRestored)
+	if stats.PriorityRestored != 1 {
+		t.Fatalf("priority_restored = %d, want 1 plan default update", stats.PriorityRestored)
 	}
 	expectedPatches := map[string][]int{
-		"quota.json":   {-1},
 		"default.json": {4},
-		"restore.json": {21},
 	}
 	if !reflect.DeepEqual(priorityPatches, expectedPatches) {
 		t.Fatalf("priority patches = %#v, want %#v", priorityPatches, expectedPatches)

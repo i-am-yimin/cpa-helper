@@ -4,7 +4,7 @@ import App from './app/App.vue'
 import { router } from './app/router'
 import { markAppReady } from './app/state/appStartup'
 import './styles/tokens.css'
-import './styles/looseleaf.css'
+import './styles/boardui.css'
 
 const app = createApp(App)
 

@@ -29,3 +29,14 @@ SHA-256：`b6a4743643a68748fd84710549704f5a57f23f615f69350699d6fd30a4eddfad`
 - 上述生产验证补齐了此前的原生加载与真实请求验证；仍未执行 PostgreSQL 容器验收。
 
 接入与恢复方式见 [Antigravity 分组调度说明](antigravity-group-scheduler.md)。设计规范见根目录 [DESIGN.md](../DESIGN.md)。本地截图位于 `.impeccable/review/`，不进入 Git。
+
+## 2026-11-09 BoardUI 与 Codex 持久暂停改造
+
+- 界面已采用 BoardUI 的 MIT 开源主题、排版令牌和组件样式，适配现有 Vue / Reka，覆盖登录、共享控件和管理页面。移除 Looseleaf CSS、Kevin Sans 和手绘描边；本地字体改为 Inter Variable，包含字体与 BoardUI 授权副本。
+- Codex 低额度暂停、全局/独立/关闭阈值、实际 CPA 禁用、明确的手动恢复、人工禁用保护和手动优先级持久化均已实现。新规则默认关闭，未代用户填写启用百分比。详见 [暂停规则设计与实现](codex-quota-manual-pause-design.md)。
+- 插件就绪状态改为读取 Core 注册表，近期调度心跳单独展示。新增测试验证插件空闲仍就绪、禁用不被旧心跳覆盖、读取失败为未知而非未安装。
+- 本地后端全量 312 个测试事件通过，32 个外部条件用例跳过；随后新增的插件状态测试定向通过。发现并修复了刷新收尾越过数据库/日志生命周期的竞态，原失败用例连续 5 次通过。
+- 全平台浏览器用例 51 项：50 项逐项通过，1 项需单独开启的实账导出用例跳过。SSO 过期回调的旧断言误拒绝合法的用量时间筛选 query，改为准确校验目标 pathname，3 项 SSO 用例定向复跑通过。
+- `npm run lint`、`npm run test:i18n`、`npm run build`、6 项部署测试和 OIDC 绑定工具测试通过。SQLite 迁移、PostgreSQL SQL 链、导入表清单、启动就绪版本同步为 `202611090001`；未执行 PostgreSQL 实库验收。
+- 1440/768/390 视图、深色模式、全局规则及暂停明细截图已检查。列表按 959px 内容宽度切换卡片行，避免侧栏挤压后隐藏启用开关。独立视觉复核认可 BoardUI 替换与布局；两项对比度修复经复核均为 resolved，最终 disposition 为 `ship`（该轮结论范围为所列修复）。
+- 设计令牌 YAML 与 schema-v2 sidecar 通过校验，9 个片段已在 Chrome shadow DOM 中渲染验证。截图和测试数据均来自隔离环境，未设置生产阈值或修改生产凭证状态。

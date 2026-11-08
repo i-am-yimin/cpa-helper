@@ -60,7 +60,7 @@ plugins:
 Core 只启用一个最高顺序的 scheduler 插件。若已有调度插件，应先核对是否冲突；此插件无需 auth-list、auth-read、auth-write 或 model-execute 权限。
 
 6. 启动后打开“上游与凭证”，展开 Antigravity 保存分组模型映射与优先级。首次保存或查看额度会生成快照，后台每分钟检查并在上游缓存到期时刷新，关闭浏览器后继续工作。
-7. 发起一笔命中该分组的受控请求。插件在真正参与选择后写入 `.status` 心跳；管理页只有在近 2 分钟存在该证据时显示“分组插件已参与调度”。无新请求超过 2 分钟会显示等待验证，不能据此直接判断插件进程已停。
+7. 管理页由后端读取 Core 的 `/v8/management/plugins`：已注册且有效启用时显示“分组插件已加载”。未安装、未启用、状态读取失败分别显示；读取失败不冒充未安装。插件在真正参与选择后写入 `.status` 心跳，最近调度时间单独展示，超过 2 分钟没有请求仍保持已加载状态。旧版“待插件接入”仅由近期心跳推断，曾把空闲误显示为未接入，本版已修正。
 
 禁用该 scheduler 插件即可回到 CPA 内置调度；未改写全局 priority，也未复制或拆分 OAuth 凭证。共享文件缺失、损坏、无法匹配模型时回退内置选路。
 
@@ -71,4 +71,4 @@ Core 只启用一个最高顺序的 scheduler 插件。若已有调度插件，�
 - [CPA Core scheduler 示例](https://github.com/BlueSkyXN/CPA-Core-LTS/tree/v1-lts-0.1.2/examples/plugin/scheduler)
 - [候选选择与属性合同](https://github.com/BlueSkyXN/CPA-Core-LTS/blob/v1-lts-0.1.2/sdk/cliproxy/auth/conductor_selection.go)
 - [RPC 注册能力](https://github.com/BlueSkyXN/CPA-Core-LTS/blob/v1-lts-0.1.2/internal/pluginhost/rpc_schema.go)
-- [Looseleaf 源码与字体授权](https://github.com/kevintngo/looseleaf)
+- [BoardUI 开源组件与设计令牌（MIT，适配 Vue）](https://github.com/BoardUI/boardui)

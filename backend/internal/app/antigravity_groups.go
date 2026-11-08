@@ -238,7 +238,40 @@ func (a *App) handleGroupScheduler(w http.ResponseWriter, r *http.Request) error
 			_ = json.Unmarshal(data, &heartbeat)
 		}
 		active := !heartbeat.PickedAt.IsZero() && time.Since(heartbeat.PickedAt) >= 0 && time.Since(heartbeat.PickedAt) < 2*time.Minute
-		writeJSON(w, http.StatusOK, map[string]any{"active": active, "last_pick_at": heartbeat.PickedAt, "plugin": "cpa-group-scheduler"})
+		// A heartbeat proves recent use, not whether a plugin is installed.
+		// An idle, loaded plugin must remain visibly ready.
+		phase, version := "unknown", ""
+		cfg, err := a.loadConfig(r.Context())
+		if err == nil {
+			_, payload, requestErr := a.keeperRequest(r.Context(), cfg, http.MethodGet, "/v8/management/plugins", nil, nil, 5*time.Second)
+			if requestErr == nil {
+				var inventory struct {
+					Enabled bool `json:"plugins_enabled"`
+					Plugins []struct {
+						ID         string `json:"id"`
+						Registered bool   `json:"registered"`
+						Effective  bool   `json:"effective_enabled"`
+						Metadata   struct {
+							Version string `json:"version"`
+						} `json:"metadata"`
+					} `json:"plugins"`
+				}
+				if json.Unmarshal(payload, &inventory) == nil && inventory.Plugins != nil {
+					phase = "missing"
+					for _, plugin := range inventory.Plugins {
+						if plugin.ID != "cpa-group-scheduler" {
+							continue
+						}
+						version = plugin.Metadata.Version
+						phase = "disabled"
+						if plugin.Registered && plugin.Effective {
+							phase = "ready"
+						}
+					}
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"active": active && phase == "ready", "phase": phase, "loaded": phase == "ready", "version": version, "last_pick_at": heartbeat.PickedAt, "plugin": "cpa-group-scheduler"})
 		return nil
 	case http.MethodPut:
 		var policy antigravityGroupPolicy

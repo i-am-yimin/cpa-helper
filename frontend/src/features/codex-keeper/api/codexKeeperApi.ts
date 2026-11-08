@@ -18,6 +18,8 @@ import type {
   CodexKeeperSettingsUpdatePayload,
   CodexKeeperStatus,
   CredentialOAuthProvider,
+  CodexQuotaPolicy,
+  CodexQuotaRule,
 } from '@/shared/types/api'
 
 export function getAntigravityQuota(name: string, force = false): Promise<AntigravityQuotaSnapshot> {
@@ -25,8 +27,21 @@ export function getAntigravityQuota(name: string, force = false): Promise<Antigr
   return force ? apiClient.post<AntigravityQuotaSnapshot>(path) : apiClient.get<AntigravityQuotaSnapshot>(path)
 }
 
-export function getGroupSchedulerStatus(): Promise<{ active: boolean; last_pick_at: string; plugin: string }> {
+export function getGroupSchedulerStatus(): Promise<{ active: boolean; loaded?: boolean; phase?: 'ready' | 'missing' | 'disabled' | 'unknown'; last_pick_at: string; plugin: string; version?: string }> {
   return apiClient.get('/upstreams/group-scheduler')
+}
+
+export function getCodexQuotaPolicy(name?: string): Promise<CodexQuotaPolicy> {
+  return apiClient.get(name ? `/codex-keeper/accounts/${encodeURIComponent(name)}/quota-policy` : '/codex-keeper/quota-policy')
+}
+export function saveCodexQuotaPolicy(rule: CodexQuotaRule, name?: string): Promise<CodexQuotaPolicy> {
+  return apiClient.put(name ? `/codex-keeper/accounts/${encodeURIComponent(name)}/quota-policy` : '/codex-keeper/quota-policy', rule)
+}
+export function resumeCodexQuotaAccount(name: string, priority: number): Promise<void> {
+  return apiClient.post(`/codex-keeper/accounts/${encodeURIComponent(name)}/resume`, { priority })
+}
+export function useCodexPlanPriority(name: string): Promise<void> {
+  return apiClient.post(`/codex-keeper/accounts/${encodeURIComponent(name)}/priority-default`)
 }
 
 export function updateAntigravityGroup(payload: { auth_name: string; group_id: string; priority: number; model_patterns: string[] }): Promise<AntigravityQuotaSnapshot> {

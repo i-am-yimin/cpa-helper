@@ -74,6 +74,10 @@ type App struct {
 	groupSchedulerMu          sync.Mutex
 	groupSchedulerCancel      context.CancelFunc
 	groupSchedulerDone        chan struct{}
+	codexPolicyMu             sync.RWMutex
+	codexAuthLocks            sync.Map
+	codexPolicyCancel         context.CancelFunc
+	codexPolicyDone           chan struct{}
 	usageCache                usageQueryCache
 	quotaSyncMu               sync.Mutex
 	oidcMu                    sync.Mutex
@@ -187,9 +191,14 @@ func (a *App) startBackground(ctx context.Context) {
 	a.usageMaintenance.Start()
 	a.startQuotaMaintenance(ctx)
 	a.startGroupSchedulerMaintenance(ctx)
+	a.startCodexQuotaMaintenance(ctx)
 }
 
 func (a *App) Close() {
+	if a.codexPolicyCancel != nil {
+		a.codexPolicyCancel()
+		<-a.codexPolicyDone
+	}
 	if a.groupSchedulerCancel != nil {
 		a.groupSchedulerCancel()
 		<-a.groupSchedulerDone
@@ -206,7 +215,7 @@ func (a *App) Close() {
 		a.collector.Stop()
 	}
 	if a.keeper != nil {
-		a.keeper.Stop()
+		a.keeper.Shutdown()
 	}
 	if a.usageMaintenance != nil {
 		a.usageMaintenance.Stop()

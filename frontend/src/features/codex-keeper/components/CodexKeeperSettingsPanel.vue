@@ -401,7 +401,7 @@ onBeforeUnmount(() => {
           <h3 class="config-block-title">{{ t('执行参数', 'Execution Parameters') }}</h3>
           <FieldGroup class="params-grid">
             <Field>
-              <FieldLabel for="keeper-quota-threshold">{{ t('额度阈值（%）', 'Quota Threshold (%)') }}</FieldLabel>
+              <FieldLabel for="keeper-quota-threshold">{{ t('Antigravity 分组已用降级阈值（%）', 'Antigravity group used quota threshold (%)') }}</FieldLabel>
               <Input id="keeper-quota-threshold" type="number" min="0" max="100" :model-value="form.quota_threshold" @update:model-value="form.quota_threshold = numberInput($event, 100)" />
             </Field>
             <Field>

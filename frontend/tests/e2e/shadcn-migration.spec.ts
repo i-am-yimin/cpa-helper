@@ -485,7 +485,7 @@ test('all migrated routes render and core controls remain interactive', async ({
   const analyticsQuickRangeTabs = page.locator('.quick-ranges[data-slot="tabs"]')
   await expect(analyticsQuickRangeTabs.getByRole('tablist')).toHaveAccessibleName(/快捷时间范围|Quick time ranges/)
   await expect(analyticsQuickRangeTabs.getByRole('tab')).toHaveCount(6)
-  await expect(page.locator('body')).toHaveCSS('font-family', '"Kevin Sans", "Microsoft YaHei", "PingFang SC", sans-serif')
+  await expect(page.locator('body')).toHaveCSS('font-family', '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif')
   expect(await page.locator('body').evaluate((element) => getComputedStyle(element).fontSynthesis)).toContain('weight')
   const analyticsRangeTrigger = page.locator('[data-slot="date-time-range-trigger"]')
   const analyticsRangeBox = await analyticsRangeTrigger.boundingBox()
@@ -1026,8 +1026,8 @@ test('all migrated routes render and core controls remain interactive', async ({
   const endpointRightInset =
     ((endpointGroupBox?.x ?? 0) + (endpointGroupBox?.width ?? 0)) -
     ((endpointLastButtonBox?.x ?? 0) + (endpointLastButtonBox?.width ?? 0))
-  expect(endpointLeftInset).toBeCloseTo(0, 0)
-  expect(endpointRightInset).toBeCloseTo(0, 0)
+  expect(endpointLeftInset).toBeCloseTo(5, 0)
+  expect(endpointRightInset).toBeCloseTo(5, 0)
   expect(
     Math.abs(endpointLeftInset - endpointRightInset),
   ).toBeLessThanOrEqual(1)
@@ -1116,7 +1116,7 @@ test('theme and mobile navigation survive the migration', async ({ page }) => {
   await expect(page.locator('[data-slot="sidebar"][data-variant="inset"]')).toBeVisible()
   await expect.poll(() =>
     page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--cpa-primary').trim()),
-  ).toBe('#a84422')
+  ).toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--color-accent-600').trim()))
   await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCSS('border-right-width', '0px')
   await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCSS('width', '256px')
   const usageMenuButton = page.getByRole('button', { name: /用量分析|Usage Analytics/ })
@@ -1165,13 +1165,13 @@ test('theme and mobile navigation survive the migration', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/dark/)
   await expect.poll(() =>
     page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--cpa-primary').trim()),
-  ).toBe('#f1a37f')
+  ).toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--color-accent-400').trim()))
   await expect(page.locator('[data-slot="sidebar-container"]')).toHaveCSS('border-right-width', '0px')
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
   await page.getByRole('button', { name: /打开导航|Open navigation/ }).click()
-  await expect(page.locator('[data-mobile="true"]')).toHaveCSS('border-right-color', 'rgb(83, 96, 79)')
+  await expect(page.locator('[data-mobile="true"]')).toHaveCSS('border-right-color', await page.locator('[data-mobile="true"]').evaluate(el => { const probe = document.createElement('span'); probe.style.color = 'var(--sidebar-border)'; el.append(probe); const color = getComputedStyle(probe).color; probe.remove(); return color }))
   await expect(page.locator('[data-mobile="true"]')).toHaveCSS('width', '288px')
   await expect(page.locator('.mobile-brand-copy strong')).toBeVisible()
   await expect(page.locator('.mobile-version-badge')).toHaveCount(0)

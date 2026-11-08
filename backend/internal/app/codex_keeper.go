@@ -49,6 +49,8 @@ const (
 type KeeperRunner struct {
 	app            *App
 	mu             sync.Mutex
+	workers        sync.WaitGroup
+	closing        bool
 	daemonStop     chan struct{}
 	daemonDone     chan struct{}
 	running        bool
@@ -120,7 +122,7 @@ type keeperRefreshAccountsRequest struct {
 }
 
 type keeperPriorityUpdateRequest struct {
-	Priority int `json:"priority"`
+	Priority *int `json:"priority"`
 }
 
 type keeperOAuthStartResponse struct {
@@ -183,6 +185,7 @@ type keeperAccount struct {
 }
 
 type keeperAccountResponse struct {
+	QuotaPolicy            *codexQuotaPolicy               `json:"quota_policy,omitempty"`
 	Name                   string                          `json:"name"`
 	Provider               string                          `json:"provider"`
 	Email                  *string                         `json:"email"`
@@ -294,6 +297,7 @@ type keeperAuthState struct {
 }
 
 type keeperUsageInfo struct {
+	PrimaryUsedValid       bool
 	PlanType               string
 	PrimaryUsedPercent     int
 	SecondaryUsedPercent   *int
@@ -408,6 +412,10 @@ func (r *KeeperRunner) StartDaemon() error {
 	}
 
 	r.mu.Lock()
+	if r.closing {
+		r.mu.Unlock()
+		return conflictError("Codex Keeper 正在关闭")
+	}
 	if r.daemonRunningLocked() {
 		r.mu.Unlock()
 		return nil
@@ -455,6 +463,16 @@ func (r *KeeperRunner) Stop() {
 	}
 	r.mu.Unlock()
 	r.log("Codex Keeper 已停止自动巡检")
+}
+
+// Shutdown is stronger than stopping the daemon: manual and conditional refresh
+// workers must finish their DB and log writes before App closes its storage.
+func (r *KeeperRunner) Shutdown() {
+	r.mu.Lock()
+	r.closing = true
+	r.mu.Unlock()
+	r.Stop()
+	r.workers.Wait()
 }
 
 func (r *KeeperRunner) ClearLogs() {
@@ -705,6 +723,9 @@ func keeperRunningDetail(modes []string) string {
 func (r *KeeperRunner) markRunning(mode string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closing {
+		return false
+	}
 	r.ensureRunningModesLocked()
 	for runningMode := range r.runningModes {
 		if keeperModesConflict(runningMode, mode) {
@@ -712,6 +733,7 @@ func (r *KeeperRunner) markRunning(mode string) bool {
 		}
 	}
 	r.runningModes[mode] = struct{}{}
+	r.workers.Add(1)
 	now := time.Now().In(appTimeLocation)
 	r.running = true
 	r.state = "running"
@@ -729,6 +751,7 @@ func (r *KeeperRunner) run(mode string) {
 }
 
 func (r *KeeperRunner) runAccounts(mode string, authNames []string) {
+	defer r.workers.Done()
 	options := keeperRunOptionsForMode(mode, authNames)
 	options.TryLockAuthName = r.tryLockAuthName
 	options.UnlockAuthName = r.unlockAuthName
@@ -737,6 +760,9 @@ func (r *KeeperRunner) runAccounts(mode string, authNames []string) {
 	logMessage := detail
 	if err != nil {
 		logMessage = "巡检失败：" + err.Error()
+	}
+	if strings.TrimSpace(logMessage) != "" {
+		r.log(logMessage)
 	}
 	r.mu.Lock()
 	r.ensureRunningModesLocked()
@@ -759,9 +785,6 @@ func (r *KeeperRunner) runAccounts(mode string, authNames []string) {
 		r.detail = detail
 	}
 	r.mu.Unlock()
-	if strings.TrimSpace(logMessage) != "" {
-		r.log(logMessage)
-	}
 }
 
 func (r *KeeperRunner) log(message string) {
@@ -947,6 +970,60 @@ func (a *App) handleCodexKeeper(w http.ResponseWriter, r *http.Request) error {
 		return forbiddenError("需要管理员权限")
 	}
 	switch {
+	case len(parts) == 3 && parts[0] == "accounts" && parts[2] == "priority-default":
+		if err := requireMethod(r, http.MethodPost); err != nil {
+			return err
+		}
+		name, err := keeperAccountNameFromPath(parts[1])
+		if err != nil {
+			return err
+		}
+		if err := a.setCodexPlanPriority(r.Context(), name); err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+		return nil
+	case len(parts) == 1 && parts[0] == "quota-policy":
+		return a.handleCodexQuotaPolicy(w, r, "", true)
+	case len(parts) == 3 && parts[0] == "accounts" && parts[2] == "quota-policy":
+		name, err := keeperAccountNameFromPath(parts[1])
+		if err != nil {
+			return err
+		}
+		return a.handleCodexQuotaPolicy(w, r, name, false)
+	case len(parts) == 3 && parts[0] == "accounts" && parts[2] == "resume":
+		if err := requireMethod(r, http.MethodPost); err != nil {
+			return err
+		}
+		name, err := keeperAccountNameFromPath(parts[1])
+		if err != nil {
+			return err
+		}
+		var payload keeperPriorityUpdateRequest
+		if err := decodeJSON(r, &payload); err != nil {
+			return err
+		}
+		if payload.Priority == nil {
+			return validationError("请明确指定优先级，0 也是有效值")
+		}
+		unlock := a.lockCodexAuth(name)
+		defer unlock()
+		cfg, err := a.loadConfig(r.Context())
+		if err != nil {
+			return err
+		}
+		remote, err := a.codexRemoteItem(r.Context(), cfg, name)
+		if err != nil {
+			return err
+		}
+		if !keeperIsCodexProvider(keeperCredentialProvider(remote)) {
+			return validationError("此操作仅适用于 Codex")
+		}
+		if err := a.setCodexManualPriorityLocked(r.Context(), cfg, name, *payload.Priority, true, remote); err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "resumed"})
+		return nil
 	case len(parts) == 3 && parts[0] == "accounts" && parts[2] == "quota":
 		if r.Method != http.MethodGet && r.Method != http.MethodPost {
 			return requireMethod(r, http.MethodGet)
@@ -1192,7 +1269,10 @@ func (a *App) handleCodexKeeper(w http.ResponseWriter, r *http.Request) error {
 		if err := decodeJSON(r, &payload); err != nil {
 			return err
 		}
-		if err := a.updateKeeperAccountPriority(r.Context(), authName, payload.Priority); err != nil {
+		if payload.Priority == nil {
+			return validationError("请明确指定优先级，0 也是有效值")
+		}
+		if err := a.updateKeeperAccountPriority(r.Context(), authName, *payload.Priority); err != nil {
 			return err
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
@@ -1268,6 +1348,7 @@ func (a *App) keeperAccountResponses(accounts []keeperAccount, windowUsages map[
 	for _, account := range accounts {
 		usage := windowUsages[account.Name]
 		responses = append(responses, keeperAccountResponse{
+			QuotaPolicy:            a.codexQuotaPolicyForAccount(account),
 			Name:                   account.Name,
 			Provider:               account.Provider,
 			Email:                  account.Email,
@@ -2622,6 +2703,21 @@ func (a *App) ensureKeeperAuthWebsockets(
 }
 
 func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map[string]any, logFn func(string), manualRefresh bool) keeperAccountResult {
+	name := keeperString(authInfo["name"])
+	unlock := a.lockCodexAuth(name)
+	defer unlock()
+	policy, err := a.getCodexQuotaPolicy(ctx, name)
+	if err == nil && policy.Paused {
+		err = a.enforceCodexQuotaPause(ctx, cfg, name, policy, authInfo)
+	}
+	if err != nil {
+		message := "额度暂停状态同步失败：" + err.Error()
+		return keeperAccountResult{Name: name, Result: "network_error", LastError: &message, LatestAction: &message, CheckedAt: time.Now()}
+	}
+	return a.processKeeperAuthLocked(ctx, cfg, authInfo, logFn, manualRefresh, policy)
+}
+
+func (a *App) processKeeperAuthLocked(ctx context.Context, cfg AppConfig, authInfo map[string]any, logFn func(string), manualRefresh bool, quotaPolicy *codexQuotaPolicy) keeperAccountResult {
 	now := time.Now().In(appTimeLocation)
 	name := keeperString(authInfo["name"])
 	if name == "" {
@@ -2654,19 +2750,19 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 	result.Disabled = &disabled
 	result.AccountType = accountTypeFromKeeperDetail(merged, nil)
 	var state *keeperAuthState
-	var restorePriority *int
 	if loadedState, err := a.getKeeperState(ctx, name); err == nil {
 		state = loadedState
-		restorePriority = loadedState.RestorePriority
 	}
 	recoverableUnauthorizedDisabled := disabled && isKeeperRecoverableUnauthorizedDisabledState(state)
-	if disabled && !manualRefresh && !recoverableUnauthorizedDisabled {
+	if disabled && !manualRefresh && !recoverableUnauthorizedDisabled && !quotaPolicy.Paused {
 		result.Result = "disabled"
 		a.preserveKeeperBadCredentialDiagnosis(ctx, &result)
 		_ = a.upsertKeeperState(ctx, result)
 		return result
 	}
 	if keeperString(merged["access_token"]) == "" {
+		quotaPolicy.CredentialBlocked = true
+		_ = a.saveCodexQuotaPolicy(ctx, name, quotaPolicy)
 		message := "缺少 access token"
 		action := "刷新发现凭证不可用：" + message
 		if !cfg.CodexKeeper.DryRun {
@@ -2679,7 +2775,9 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 					return result
 				}
 			}
-			_ = a.setKeeperRemotePriority(ctx, cfg, name, nil)
+			if !quotaPolicy.Paused {
+				_ = a.setKeeperRemotePriority(ctx, cfg, name, nil)
+			}
 			disabled = true
 			result.Disabled = &disabled
 			result.Priority = nil
@@ -2707,6 +2805,8 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 	}
 	result.LastStatusCode = usageResult.StatusCode
 	if isBadKeeperCredential(usageResult) {
+		quotaPolicy.CredentialBlocked = true
+		_ = a.saveCodexQuotaPolicy(ctx, name, quotaPolicy)
 		message := fmt.Sprintf("凭证不可用：HTTP %d", *usageResult.StatusCode)
 		if usageResult.Brief != "" {
 			message += "，" + usageResult.Brief
@@ -2722,7 +2822,9 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 					return result
 				}
 			}
-			_ = a.setKeeperRemotePriority(ctx, cfg, name, nil)
+			if !quotaPolicy.Paused {
+				_ = a.setKeeperRemotePriority(ctx, cfg, name, nil)
+			}
 			disabled = true
 			result.Disabled = &disabled
 			result.Priority = nil
@@ -2753,7 +2855,9 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 	}
 	usage := parseKeeperUsageInfo(usageResult.JSONData)
 	result.AccountType = accountTypeFromKeeperDetail(merged, &usage)
-	result.PrimaryUsedPercent = &usage.PrimaryUsedPercent
+	if usage.PrimaryUsedValid && usage.PrimaryUsedPercent >= 0 && usage.PrimaryUsedPercent <= 100 {
+		result.PrimaryUsedPercent = &usage.PrimaryUsedPercent
+	}
 	result.SecondaryUsedPercent = usage.SecondaryUsedPercent
 	result.PrimaryResetAt = usage.PrimaryResetAt
 	result.SecondaryResetAt = usage.SecondaryResetAt
@@ -2761,8 +2865,21 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 	result.SecondaryWindowSeconds = usage.SecondaryWindowSeconds
 	result.QuotaThreshold = &cfg.CodexKeeper.QuotaThreshold
 	result.Result = "healthy"
+	if err := a.observeCodexQuota(ctx, cfg, name, quotaPolicy, merged, usage); err != nil {
+		message := "额度暂停同步失败：" + err.Error()
+		result.Result, result.LastError, result.LatestAction = "network_error", &message, &message
+		_ = a.upsertKeeperState(ctx, result)
+		return result
+	}
+	if quotaPolicy.Paused {
+		low, blocked := -1, true
+		message := "额度触发暂停：" + quotaPolicy.Reason + "；需手动恢复"
+		result.Result, result.Priority, result.Disabled, result.LatestAction = "priority_degraded", &low, &blocked, &message
+		_ = a.upsertKeeperState(ctx, result)
+		return result
+	}
 
-	if recoverableUnauthorizedDisabled {
+	if recoverableUnauthorizedDisabled && !quotaPolicy.ManualDisabled {
 		action := fmt.Sprintf("恢复启用：usage 检测恢复 HTTP %d", *usageResult.StatusCode)
 		if !cfg.CodexKeeper.DryRun {
 			if err := a.setKeeperRemoteDisabled(ctx, cfg, name, false); err != nil {
@@ -2788,7 +2905,21 @@ func (a *App) processKeeperAuth(ctx context.Context, cfg AppConfig, authInfo map
 		return result
 	}
 
-	action := a.applyKeeperPriorityPolicy(ctx, cfg, name, result.AccountType, result.Priority, restorePriority, usage)
+	var action *keeperPriorityPolicyAction
+	if quotaPolicy.ManualPriority != nil {
+		if keeperEffectivePriority(result.Priority) != *quotaPolicy.ManualPriority {
+			if err := a.setKeeperRemotePriority(ctx, cfg, name, quotaPolicy.ManualPriority); err != nil {
+				message := "同步手动优先级失败：" + err.Error()
+				result.LastError = &message
+				result.Result = "network_error"
+				_ = a.upsertKeeperState(ctx, result)
+				return result
+			}
+			result.Priority = quotaPolicy.ManualPriority
+		}
+	} else {
+		action = a.applyKeeperPlanPriority(ctx, cfg, name, result.AccountType, result.Priority)
+	}
 	if action != nil {
 		result.LatestAction = &action.Message
 		if action.Result == "priority_degraded" {
@@ -2830,77 +2961,22 @@ type keeperPriorityPolicyAction struct {
 	RestorePriority *int
 }
 
-func (a *App) applyKeeperPriorityPolicy(ctx context.Context, cfg AppConfig, name string, accountType *string, priority *int, restorePriority *int, usage keeperUsageInfo) *keeperPriorityPolicyAction {
-	quotaReached := usage.PrimaryUsedPercent >= cfg.CodexKeeper.QuotaThreshold ||
-		(usage.SecondaryUsedPercent != nil && *usage.SecondaryUsedPercent >= cfg.CodexKeeper.QuotaThreshold)
+func (a *App) applyKeeperPlanPriority(ctx context.Context, cfg AppConfig, name string, accountType *string, priority *int) *keeperPriorityPolicyAction {
 	currentPriority := keeperEffectivePriority(priority)
 	next := keeperPriorityForType(accountType, cfg.CodexKeeperPriorityRule)
-	if quotaReached {
-		if currentPriority <= -1 {
-			return nil
-		}
-		restoreTo := restorePriority
-		if restoreTo == nil {
-			restoreTo = next
-		}
-		if currentPriority > 20 {
-			restoreTo = &currentPriority
-		}
-		if restoreTo == nil {
-			restoreTo = &currentPriority
-		}
-		message := fmt.Sprintf("降为低优先级：额度使用率达到阈值 %d%%", cfg.CodexKeeper.QuotaThreshold)
-		if cfg.CodexKeeper.DryRun {
-			message = "模拟" + message
-			low := -1
-			return &keeperPriorityPolicyAction{Message: message, Result: "priority_degraded", Priority: &low, RestorePriority: restoreTo}
-		}
-		low := -1
-		if err := a.setKeeperRemotePriority(ctx, cfg, name, &low); err != nil {
-			message = "写入低优先级失败：" + err.Error()
-			return &keeperPriorityPolicyAction{Message: message}
-		}
-		return &keeperPriorityPolicyAction{Message: message, Result: "priority_degraded", Priority: &low, RestorePriority: restoreTo}
-	}
-	if currentPriority == -1 {
-		restoreTo := restorePriority
-		if restoreTo == nil {
-			restoreTo = next
-		}
-		if restoreTo == nil {
-			zero := 0
-			restoreTo = &zero
-		}
-		message := fmt.Sprintf("恢复优先级：priority %d", *restoreTo)
-		if cfg.CodexKeeper.DryRun {
-			message = "模拟" + message
-			return &keeperPriorityPolicyAction{Message: message, Result: "priority_restored", Priority: restoreTo}
-		}
-		if err := a.setKeeperRemotePriority(ctx, cfg, name, restoreTo); err != nil {
-			message = "恢复优先级失败：" + err.Error()
-			return &keeperPriorityPolicyAction{Message: message}
-		}
-		return &keeperPriorityPolicyAction{Message: message, Result: "priority_restored", Priority: restoreTo}
-	}
-	if currentPriority < -1 || currentPriority > 20 {
+	// Historical negative/high values keep their meaning. A quota pause is
+	// identified exclusively by the durable policy, never by this integer.
+	if currentPriority < 0 || currentPriority > 20 || next == nil || currentPriority == *next {
 		return nil
 	}
-	if next == nil {
-		return nil
+	message := fmt.Sprintf("应用类型优先级：%s -> priority %d", valueOr(accountType, "unknown"), *next)
+	if cfg.CodexKeeper.DryRun {
+		return &keeperPriorityPolicyAction{Message: "模拟" + message, Result: "priority_restored", Priority: next}
 	}
-	if currentPriority != *next {
-		message := fmt.Sprintf("应用类型优先级：%s -> priority %d", valueOr(accountType, "unknown"), *next)
-		if cfg.CodexKeeper.DryRun {
-			message = "模拟" + message
-			return &keeperPriorityPolicyAction{Message: message, Result: "priority_restored", Priority: next}
-		}
-		if err := a.setKeeperRemotePriority(ctx, cfg, name, next); err != nil {
-			message = "写入类型优先级失败：" + err.Error()
-			return &keeperPriorityPolicyAction{Message: message}
-		}
-		return &keeperPriorityPolicyAction{Message: message, Result: "priority_restored", Priority: next}
+	if err := a.setKeeperRemotePriority(ctx, cfg, name, next); err != nil {
+		return &keeperPriorityPolicyAction{Message: "写入类型优先级失败：" + err.Error()}
 	}
-	return nil
+	return &keeperPriorityPolicyAction{Message: message, Result: "priority_restored", Priority: next}
 }
 
 func keeperEffectivePriority(priority *int) int {
@@ -3657,6 +3733,32 @@ func keeperISOTime(value time.Time) string {
 }
 
 func (a *App) uploadKeeperRemoteAuthFile(ctx context.Context, cfg AppConfig, name string, content []byte) error {
+	unlock := a.lockCodexAuth(name)
+	defer unlock()
+	policy, err := a.getCodexQuotaPolicy(ctx, name)
+	if err != nil {
+		return err
+	}
+	if policy.Paused || policy.ManualDisabled || policy.ManualPriority != nil {
+		var document map[string]any
+		if err := json.Unmarshal(content, &document); err != nil {
+			return validationError("无法保留现有路由保护：认证文件不是有效 JSON")
+		}
+		if policy.Paused {
+			document["disabled"], document["priority"] = true, -1
+		} else {
+			if policy.ManualDisabled {
+				document["disabled"] = true
+			}
+			if policy.ManualPriority != nil {
+				document["priority"] = *policy.ManualPriority
+			}
+		}
+		content, err = json.Marshal(document)
+		if err != nil {
+			return err
+		}
+	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("file", name)
@@ -3824,6 +3926,15 @@ func (a *App) updateKeeperRemoteAuthFileFields(ctx context.Context, cfg AppConfi
 	}
 	if len(payload) == 1 {
 		return validationError("没有需要更新的认证文件字段")
+	}
+	if value, ok := payload["priority"]; ok {
+		if err := a.updateKeeperAccountPriority(ctx, name, value.(int)); err != nil {
+			return err
+		}
+		delete(payload, "priority")
+		if len(payload) == 1 {
+			return nil
+		}
 	}
 	_, _, err := a.keeperRequest(ctx, cfg, http.MethodPatch, "/v0/management/auth-files/fields", nil, payload, time.Duration(cfg.CodexKeeper.CPATimeoutSeconds)*time.Second)
 	return err
@@ -4681,9 +4792,52 @@ func (a *App) upsertKeeperState(ctx context.Context, result keeperAccountResult)
 }
 
 func (a *App) setKeeperAccountDisabled(ctx context.Context, authName string, disabled bool) error {
+	unlock := a.lockCodexAuth(authName)
+	defer unlock()
 	cfg, err := a.loadConfig(ctx)
 	if err != nil {
 		return err
+	}
+	remote, err := a.codexRemoteItem(ctx, cfg, authName)
+	if err != nil {
+		return err
+	}
+	if keeperIsCodexProvider(keeperCredentialProvider(remote)) {
+		state, err := a.getCodexQuotaPolicy(ctx, authName)
+		if err != nil {
+			return err
+		}
+		state.ManualDisabled = disabled
+		if err := a.saveCodexQuotaPolicy(ctx, authName, state); err != nil {
+			return err
+		}
+		if !disabled {
+			if state.Paused {
+				// An enable toggle can release a manual-disable reason only.
+				// The explicit resume action is required to release quota ownership.
+				if err := a.enforceCodexQuotaPause(ctx, cfg, authName, state, remote); err != nil {
+					return err
+				}
+				return conflictError("额度暂停仍保留，请指定优先级并使用恢复路由操作")
+			}
+			priority := keeperEffectivePriority(keeperIntPtr(remote["priority"]))
+			if state.ManualPriority != nil {
+				priority = *state.ManualPriority
+			}
+			if priority == -1 {
+				priority = 0
+			}
+			err := a.setCodexManualPriorityLocked(ctx, cfg, authName, priority, true, remote)
+			if err != nil {
+				// The explicit enable action releases the manual-disable reason
+				// even if a newly observed quota guard still prevents enabling.
+				if latest, loadErr := a.getCodexQuotaPolicy(ctx, authName); loadErr == nil && latest.ManualDisabled {
+					latest.ManualDisabled = false
+					err = errors.Join(err, a.saveCodexQuotaPolicy(ctx, authName, latest))
+				}
+			}
+			return err
+		}
 	}
 	if err := a.setKeeperRemoteDisabled(ctx, cfg, authName, disabled); err != nil {
 		return err
@@ -4709,6 +4863,8 @@ func (a *App) setKeeperAccountDisabled(ctx context.Context, authName string, dis
 }
 
 func (a *App) deleteKeeperAccount(ctx context.Context, authName string) error {
+	unlock := a.lockCodexAuth(authName)
+	defer unlock()
 	cfg, err := a.loadConfig(ctx)
 	if err != nil {
 		return err
@@ -4719,6 +4875,7 @@ func (a *App) deleteKeeperAccount(ctx context.Context, authName string) error {
 	_, err = a.db.ExecContext(ctx, `DELETE FROM codex_keeper_auth_states WHERE auth_name = ?`, authName)
 	if err == nil {
 		a.deleteCachedKeeperResetCredits(authName)
+		_, err = a.db.ExecContext(ctx, `DELETE FROM codex_quota_policies WHERE auth_name = ?`, authName)
 	}
 	return err
 }
@@ -4746,6 +4903,8 @@ func (a *App) bulkDeleteKeeperAccounts(w http.ResponseWriter, r *http.Request) e
 }
 
 func (a *App) updateKeeperAccountPriority(ctx context.Context, authName string, priority int) error {
+	unlock := a.lockCodexAuth(authName)
+	defer unlock()
 	cfg, err := a.loadConfig(ctx)
 	if err != nil {
 		return err
@@ -4759,10 +4918,7 @@ func (a *App) updateKeeperAccountPriority(ctx context.Context, authName string, 
 		return notFoundError("凭证不存在")
 	}
 	if keeperIsCodexProvider(keeperCredentialProvider(item)) {
-		accountType := keeperStringPtr(item["account_type"], item["accountType"], item["plan_type"], item["planType"])
-		if err := validateKeeperPriority(priority, accountType, cfg.CodexKeeperPriorityRule); err != nil {
-			return err
-		}
+		return a.setCodexManualPriorityLocked(ctx, cfg, authName, priority, false, item)
 	} else if priority < -1000000 || priority > 1000000 {
 		return validationError("凭证优先级必须在 -1000000 到 1000000 之间")
 	}
@@ -4908,6 +5064,7 @@ func parseKeeperUsageInfo(payload map[string]any) keeperUsageInfo {
 	primary, _ := rateLimit["primary_window"].(map[string]any)
 	secondary, _ := rateLimit["secondary_window"].(map[string]any)
 	if value := keeperIntPtr(primary["used_percent"]); value != nil {
+		usage.PrimaryUsedValid = true
 		usage.PrimaryUsedPercent = *value
 	}
 	usage.SecondaryUsedPercent = keeperIntPtr(secondary["used_percent"])
@@ -5093,20 +5250,6 @@ func keeperPriorityForType(accountType *string, rules map[string]int) *int {
 		return nil
 	}
 	return &value
-}
-
-func validateKeeperPriority(priority int, accountType *string, rules map[string]int) error {
-	if priority < -1 || priority > 20 {
-		return nil
-	}
-	expected := keeperPriorityForType(accountType, rules)
-	if expected != nil && *expected == priority {
-		return nil
-	}
-	if accountType == nil || expected == nil {
-		return validationError("该凭证类型没有可设置的系统 priority")
-	}
-	return validationError(fmt.Sprintf("只能设置小于 -1、大于 20，或当前凭证类型 %s 对应的 priority %d", *accountType, *expected))
 }
 
 func isBadKeeperCredential(result keeperHTTPResult) bool {

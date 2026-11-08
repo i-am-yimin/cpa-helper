@@ -272,6 +272,7 @@ func requireSchemaShape(ctx context.Context, db *database.DB) error {
 		{"user_card_shop_favorites", "shop_key"},
 		{"user_card_shop_tags", "tag"},
 		{"antigravity_group_policies", "model_patterns"},
+		{"codex_quota_policies", "policy_json"},
 	}
 	for _, item := range required {
 		ok, err := columnExists(ctx, db, item.table, item.column)

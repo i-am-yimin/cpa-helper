@@ -339,6 +339,7 @@ export interface AntigravityQuotaSnapshot {
 }
 
 export interface CodexKeeperAccount {
+  quota_policy?: CodexQuotaPolicy
   name: string
   provider: string
   email: string | null
@@ -378,6 +379,28 @@ export interface CodexKeeperAccount {
   last_checked_at: string | null
   last_healthy_at: string | null
   reset_credits: CodexKeeperResetCredits | null
+}
+
+export interface CodexQuotaRule {
+  mode: 'inherit' | 'custom' | 'off'
+  five_hour_remaining: number | null
+  week_remaining: number | null
+}
+
+export interface CodexQuotaPolicy extends CodexQuotaRule {
+  effective_rule?: CodexQuotaRule
+  paused: boolean
+  paused_at?: string
+  reason?: string
+  previous_priority?: number
+  manual_priority?: number
+  manual_disabled: boolean
+  credential_blocked: boolean
+  sync_state?: string
+  sync_error?: string
+  synced_at?: string
+  checked_at?: string
+  version: number
 }
 
 export interface CodexKeeperAuthFileFields {

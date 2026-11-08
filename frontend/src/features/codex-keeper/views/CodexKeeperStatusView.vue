@@ -106,6 +106,8 @@ import {
   syncCodexKeeperAccountList,
   updateCodexKeeperAuthFile,
   updateCodexKeeperPriority,
+  useCodexPlanPriority,
+  resumeCodexQuotaAccount,
   uploadCodexKeeperAuthFiles,
 } from '@/features/codex-keeper/api/codexKeeperApi'
 import CodexKeeperLogsPanel from '@/features/codex-keeper/components/CodexKeeperLogsPanel.vue'
@@ -602,7 +604,7 @@ const bulkDeleteWarningText = computed(() =>
 )
 const canSubmitPriority = computed(() => {
   if (priorityDialog.mode === 'custom') {
-    return priorityDialog.account !== null && priorityDialog.value !== null && Number.isInteger(priorityDialog.value)
+    return priorityDialog.account !== null && priorityDialog.value !== null && Number.isInteger(priorityDialog.value) && (!isCodexCredential(priorityDialog.account) || priorityDialog.value !== -1)
   }
   if (priorityDialog.mode === 'default') {
     return priorityDialog.account !== null && defaultPriority(priorityDialog.account) !== null
@@ -616,13 +618,13 @@ const canSubmitPriority = computed(() => {
 const priorityDialogTitle = computed(() => t('修改优先级', 'Change Priority'))
 const priorityDialogHint = computed(() => {
   if (priorityDialog.mode === 'custom') {
-    return t('为此凭证设置 CPA 调度优先级。', 'Set the CPA scheduling priority for this credential.')
+    return t('手动值会保留；Codex 的 -1 保留给额度暂停。暂停凭证需在“全部上游”中设置阈值并恢复。', 'Manual values are retained. Codex reserves -1 for quota pauses. Manage thresholds and resume paused credentials in All upstreams.')
   }
   if (priorityDialog.mode === 'low') {
-    return t('手动低优先级必须小于 -1，巡检永远不会自动调整。', 'Manual low priority must be less than -1. Inspection will never adjust it automatically.')
+    return t('手动优先级会保留；命中额度规则仍会禁用路由并置为 -1。', 'Manual priorities are retained. Quota rules can still disable routing and set -1.')
   }
   if (priorityDialog.mode === 'high') {
-    return t('手动优先必须大于 20，额度耗尽时会临时降为 -1，恢复后回到该值。', 'Manual priority must be greater than 20. When quota is exhausted it is temporarily lowered to -1 and restored to this value after recovery.')
+    return t('命中额度规则后保持暂停，额度恢复不会自动恢复路由。', 'Quota pauses persist. Quota recovery does not automatically resume routing.')
   }
   const account = priorityDialog.account
   const value = account ? defaultPriority(account) : null
@@ -636,8 +638,7 @@ const priorityModeOptions = computed(() => {
   }
   const defaultValue = priorityDialog.account ? defaultPriority(priorityDialog.account) : null
   return [
-    { label: t('手动低优先 (< -1)', 'Manual Low Priority (< -1)'), value: 'low' },
-    { label: t('手动优先 (> 20)', 'Manual Priority (> 20)'), value: 'high' },
+    { label: t('手动指定优先级', 'Manual priority'), value: 'custom' },
     {
       label: defaultValue === null
         ? t('类型默认优先级（不可用）', 'Type Default Priority (unavailable)')
@@ -2284,19 +2285,12 @@ function confirmConsumeResetCredit(account: CodexKeeperAccount) {
 
 function openPriorityDialog(account: CodexKeeperAccount) {
   priorityDialog.account = account
-  const priority = accountPriority(account)
   if (!isCodexCredential(account)) {
     setPriorityDialogMode('custom')
     priorityDialog.show = true
     return
   }
-  const mode =
-    priority < -1
-      ? 'low'
-      : priority > 20
-        ? 'high'
-        : 'default'
-  setPriorityDialogMode(defaultPriority(account) === null && mode === 'default' ? 'low' : mode)
+  setPriorityDialogMode(account.quota_policy?.manual_priority == null && !account.quota_policy?.paused ? 'default' : 'custom')
   priorityDialog.show = true
 }
 
@@ -2308,7 +2302,7 @@ function setPriorityDialogMode(mode: PriorityMode) {
     return
   }
   if (mode === 'custom') {
-    priorityDialog.value = account.priority ?? 0
+    priorityDialog.value = account.quota_policy?.paused ? account.quota_policy.previous_priority ?? 0 : account.priority ?? 0
     return
   }
   if (mode === 'low') {
@@ -2359,7 +2353,11 @@ async function submitPriorityDialog() {
   await runAccountAction(
     priorityDialog.account,
     'priority',
-    () => updateCodexKeeperPriority(priorityDialog.account!.name, value),
+    () => priorityDialog.mode === 'default' && isCodexCredential(priorityDialog.account)
+      ? useCodexPlanPriority(priorityDialog.account!.name)
+      : priorityDialog.account?.quota_policy?.paused
+        ? resumeCodexQuotaAccount(priorityDialog.account!.name, value)
+        : updateCodexKeeperPriority(priorityDialog.account!.name, value),
     t('优先级已更新', 'Priority updated'),
   )
   priorityDialog.show = false

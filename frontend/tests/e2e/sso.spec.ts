@@ -148,7 +148,7 @@ test('stale OIDC callbacks recover silently or show a reason before returning to
       if (request.isNavigationRequest()) navigations.push({ url: request.url(), time: Date.now() })
     })
     await page.goto('/oidc/callback?state=expired&code=expired-code')
-    await expect(page).toHaveURL(/\/account\/usage$/)
+    await expect(page).toHaveURL(url => url.pathname === '/account/usage')
     expect(identityProvider.authorizationPrompts).toEqual(['none'])
     expect(navigations.some(({ url }) => new URL(url).pathname === '/login')).toBe(false)
     expect((await page.request.get('/api/auth/me')).ok()).toBeTruthy()

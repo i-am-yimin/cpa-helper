@@ -37,6 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import AntigravityQuotaPanel from '@/features/codex-keeper/components/AntigravityQuotaPanel.vue'
+import CodexQuotaPolicyEditor from '@/features/codex-keeper/components/CodexQuotaPolicyEditor.vue'
 import {
   disableCodexKeeperAccount,
   enableCodexKeeperAccount,
@@ -45,6 +46,7 @@ import {
   listCodexKeeperAccounts,
   updateAntigravityGroup,
   updateCodexKeeperPriority,
+  resumeCodexQuotaAccount,
 } from '@/features/codex-keeper/api/codexKeeperApi'
 import {
   listUpstreamSections,
@@ -100,13 +102,23 @@ const quotas = ref<Record<string, AntigravityQuotaSnapshot>>({}),
   quotaLoading = reactive(new Set<string>())
 const expanded = reactive(new Set<string>()),
   busy = ref(''),
-  schedulerActive = ref(false)
+  schedulerPhase = ref('unknown'),
+  schedulerLastPick = ref('')
+const schedulerReady = computed(() => schedulerPhase.value === 'ready')
+const schedulerLabel = computed(() => ({
+  ready: t('分组插件已加载', 'Group plugin loaded'),
+  missing: t('未找到分组插件', 'Group plugin not found'),
+  disabled: t('分组插件未启用', 'Group plugin disabled'),
+  unknown: t('插件状态读取失败', 'Plugin status unavailable'),
+})[schedulerPhase.value] || t('插件状态未知', 'Plugin status unknown'))
+const policyDraftKey = ref(''), policyReset = ref(0)
 const drafts = reactive<Record<string, string>>({}),
   modelDrafts = reactive<Record<string, string>>({})
-const activeDraftKey = computed(() => Object.keys(drafts)[0] || Object.keys(modelDrafts)[0])
-const hasDrafts = computed(() => activeDraftKey.value !== undefined)
+const activeDraftKey = computed(() => Object.keys(drafts)[0] || Object.keys(modelDrafts)[0] || policyDraftKey.value)
+const hasDrafts = computed(() => !!activeDraftKey.value)
 function canEdit(key: string) { return !busy.value && (!hasDrafts.value || activeDraftKey.value === key) }
-function discardDrafts() { for (const key of Object.keys(drafts)) delete drafts[key]; for (const key of Object.keys(modelDrafts)) delete modelDrafts[key]; void load() }
+function discardDrafts() { for (const key of Object.keys(drafts)) delete drafts[key]; for (const key of Object.keys(modelDrafts)) delete modelDrafts[key]; policyDraftKey.value = ''; policyReset.value++; void load() }
+function policyDirty(key: string, value: boolean) { policyDraftKey.value = value ? key : '' }
 function upstreamIdentity(item: UpstreamItem, index: number) {
   const authIndex = item['auth-index'] || item.auth_index
   if (authIndex) return `#${String(authIndex)}`
@@ -232,8 +244,8 @@ async function load() {
         'Failed to load API Key upstreams. Retry.',
       ),
     )
-  schedulerActive.value =
-    scheduler.status === 'fulfilled' && scheduler.value.active
+  schedulerPhase.value = scheduler.status === 'fulfilled' ? scheduler.value.phase || (scheduler.value.loaded ? 'ready' : 'unknown') : 'unknown'
+  schedulerLastPick.value = scheduler.status === 'fulfilled' ? scheduler.value.last_pick_at : ''
   loading.value = false
   // Bound upstream quota requests; never expose tokens to the browser.
   const pending = accounts.value.filter(
@@ -266,16 +278,20 @@ function priorityHint(row: Row) {
     )
   if (row.provider !== 'codex')
     return t('数值越大越优先', 'Higher numbers run first')
+  const policy = row.account?.quota_policy
+  if (policy?.paused) return t('额度触发暂停 · 请设置恢复值并手动恢复', 'Paused by quota · Set a priority to resume manually')
+  if (policy?.manual_priority != null) return t(`手动优先级 ${policy.manual_priority}`, `Manual priority ${policy.manual_priority}`)
   const plan = row.account?.plan_type || row.account?.account_type
   const rule = rules.value.find((rule) => rule.account_type === plan)
   return rule
     ? t(
-        `自动 ${rule.priority} · 手动优先 >20 · 固定低优先 <-1`,
-        `Automatic ${rule.priority} · Manual high >20 · Fixed low <-1`,
+        `套餐默认 ${rule.priority} · 手动设置后固定`,
+        `Plan default ${rule.priority} · Manual values are retained`,
       )
-    : t('手动优先 >20 · 固定低优先 <-1', 'Manual high >20 · Fixed low <-1')
+    : t('手动设置后固定 · -1 为额度暂停', 'Manual values are retained · -1 means quota pause')
 }
 function quotaSummary(row: Row) {
+  if (row.account?.quota_policy?.paused) return { label: row.account.quota_policy.sync_state === 'paused' ? t('额度触发暂停', 'Paused by quota') : t('暂停待同步', 'Pause pending sync'), remaining: null }
   if (row.disabled) return { label: t('已禁用', 'Disabled'), remaining: null }
   if (row.provider === 'antigravity') {
     const quota = quotas.value[row.account!.name]
@@ -307,7 +323,8 @@ async function mutate(row: Row, action: 'priority' | 'toggle') {
   if (busy.value) return
   busy.value = row.id
   try {
-    const priority = Number(drafts[row.id] ?? row.priority)
+    const rawPriority = String(drafts[row.id] ?? row.priority).trim()
+    const priority = rawPriority ? Number(rawPriority) : Number.NaN
     if (
       action === 'priority' &&
       (!Number.isInteger(priority) || priority < -1000000 || priority > 1000000)
@@ -317,7 +334,7 @@ async function mutate(row: Row, action: 'priority' | 'toggle') {
       )
     if (row.kind === 'oauth') {
       if (action === 'priority')
-        await updateCodexKeeperPriority(row.account!.name, priority)
+        await (row.account?.quota_policy?.paused ? resumeCodexQuotaAccount : updateCodexKeeperPriority)(row.account!.name, priority)
       else
         await (
           row.disabled ? enableCodexKeeperAccount : disableCodexKeeperAccount
@@ -390,6 +407,7 @@ async function saveGroup(
   }
 }
 function toggleDetails(id: string) {
+  if (hasDrafts.value) { toast.info(t('请先保存或放弃当前更改', 'Save or discard the current changes first')); return }
   if (expanded.has(id)) expanded.delete(id)
   else expanded.add(id)
 }
@@ -459,12 +477,7 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
     <template v-if="tab === 'all'">
       <div class="hub-overview" aria-live="polite">
         <span><strong>{{ allRows.length }}</strong>{{ t('个上游', 'upstreams') }}</span><span><strong>{{ enabledCount }}</strong>{{ t('个已启用', 'enabled') }}</span><span><strong>{{ agGroupCount }}</strong>{{ t('个 Antigravity 分组', 'Antigravity groups') }}</span><span class="scheduler-state"><ShieldCheck class="size-4" />{{
-          schedulerActive
-            ? t('分组插件已参与调度', 'Group plugin is routing')
-            : t(
-              '分组插件等待接入 / 调度验证',
-              'Group plugin awaiting connection / routing verification',
-            )
+          schedulerLabel
         }}</span>
       </div>
       <div v-if="loadErrors.length" class="hub-error" role="alert">
@@ -613,18 +626,18 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
                       :disabled="!!busy"
                       @click="mutate(row, 'priority')"
                     >
-                      {{ t('保存', 'Save') }}
+                      {{ row.account?.quota_policy?.paused ? t('保存并恢复路由', 'Save & resume routing') : t('保存', 'Save') }}
                     </Button>
                   </div>
                   <span class="hub-row-sub priority-explanation">{{
                     priorityHint(row)
                   }}</span><Button
-                    v-if="row.provider === 'antigravity'"
+                    v-if="row.provider === 'antigravity' || row.provider === 'codex'"
                     variant="link"
                     size="sm"
                     @click="toggleDetails(row.id)"
                   >
-                    {{ t('设置分组优先级', 'Set group priorities') }}
+                    {{ row.provider === 'codex' ? t('设置额度暂停规则', 'Set quota pause rules') : t('设置分组优先级', 'Set group priorities') }}
                   </Button>
                 </TableCell><TableCell>
                   <Switch
@@ -657,9 +670,7 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
                         </div>
                         <Badge variant="outline">
                           {{
-                            schedulerActive
-                              ? t('插件已接管', 'Plugin routing')
-                              : t('待插件接入', 'Plugin required')
+                            schedulerLabel
                           }}
                         </Badge>
                       </div>
@@ -671,7 +682,7 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
                         <div>
                           <strong>{{ group.label }}</strong>
                           <p>
-                            {{ schedulerActive ? t('当前生效', 'Effective') : t('待接入优先级', 'Pending priority') }}
+                            {{ schedulerReady ? t('当前生效', 'Effective') : t('已配置优先级', 'Configured priority') }}
                             <b>{{ group.effective_priority ?? 0 }}</b><span
                               v-if="group.degraded"
                               class="text-destructive"
@@ -732,6 +743,7 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
                         can-refresh
                         @refresh="loadQuota(row.account!, true)"
                       />
+                      <p class="hub-footnote">{{ t('最近分组调度', 'Last group routing') }}：{{ schedulerLastPick && !schedulerLastPick.startsWith('0001') ? formatDateTime(schedulerLastPick) : t('暂无请求记录，空闲不影响插件就绪状态', 'No requests recorded. Idle does not mean unloaded.') }}</p>
                       <p class="hub-footnote">
                         {{
                           t(
@@ -744,6 +756,7 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
                     <template
                       v-else-if="row.account && row.provider === 'codex'"
                     >
+                      <CodexQuotaPolicyEditor :key="`${row.id}:${policyReset}`" :name="row.account.name" :initial="row.account.quota_policy" :disabled="!canEdit(`policy:${row.id}`)" @dirty="policyDirty(`policy:${row.id}`, $event)" @saved="load" />
                       <h2>{{ t('额度窗口用量', 'Quota window usage') }}</h2>
                       <div class="codex-window-list">
                         <div
@@ -819,20 +832,21 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
       <p class="hub-footnote">
         {{
           t(
-            'Codex 默认套餐规则和自动降级保持生效。Antigravity 的 Gemini、Claude / GPT 等分组使用各自的优先级与额度，分组插件接入后参与实际选路。',
-            'Codex plan defaults and quota fallback remain active. Antigravity groups use independent priorities and quotas once the group plugin is connected.',
+            'Codex 命中低额度规则后保持暂停，需指定优先级手动恢复。Antigravity 的 Gemini、Claude / GPT 等分组分别按自身优先级与额度调度。',
+            'Codex quota pauses require an explicit priority and manual resume. Antigravity groups route using their independent priorities and quotas.',
           )
         }}
       </p>
     </template>
     <UpstreamEditor v-else-if="tab === 'configuration'" embedded />
     <Credentials v-else-if="tab === 'credentials'" embedded />
-    <InspectionSettings v-else />
+    <template v-else><CodexQuotaPolicyEditor :key="policyReset" :disabled="!canEdit('policy:global')" @dirty="policyDirty('policy:global', $event)" /><InspectionSettings /></template>
   </section>
 </template>
 
 <style scoped>
 .hub-draft-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 14px; background: var(--accent); color: var(--accent-foreground); font-size: 13px; }
+.upstream-hub { container-type: inline-size; }
 .upstream-hub > * { min-width: 0; max-width: 100%; }
 .hub-list { min-width: 0; overflow: hidden; }
 .hub-description {
@@ -892,7 +906,7 @@ select {
   min-height: 36px;
   padding: 6px 26px 6px 10px;
   border: 1px solid var(--input);
-  border-radius: 5px 8px 4px 7px;
+  border-radius: 10px;
   background: var(--card);
   color: var(--foreground);
   font-size: 13px;
@@ -985,7 +999,7 @@ select {
   align-items: end;
   gap: 18px;
   padding: 14px 0;
-  border-bottom: 1px dashed var(--border);
+  border-bottom: 1px solid var(--border);
 }
 .group-policy label {
   display: grid;
@@ -1003,7 +1017,7 @@ select {
 }
 .hub-detail :deep([data-antigravity-quota] section) {
   padding-block: 12px;
-  border-bottom: 1px dashed var(--border);
+  border-bottom: 1px solid var(--border);
 }
 .hub-list-footer {
   display: flex;
@@ -1030,11 +1044,11 @@ select {
   align-items: center;
   gap: 18px;
   padding-block: 14px;
-  border-bottom: 1px dashed var(--border);
+  border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
-@media (max-width: 767px) {
+@container (max-width: 959px) {
   .hub-mobile-label { display: inline; }
   .hub-heading > div, .hub-actions { width: 100%; min-width: 0; }
   .hub-tabs { width: 100%; }
@@ -1078,6 +1092,10 @@ select {
   .hub-filters select {
     flex: 1;
     min-width: 0;
+  }
+  .hub-filters > :deep(button) {
+    flex-basis: 100%;
+    justify-content: flex-start;
   }
   .hub-overview {
     gap: 12px 20px;

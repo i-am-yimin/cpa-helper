@@ -1,16 +1,85 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"cpa-helper/backend/internal/groupscheduler"
 )
+
+func TestGroupSchedulerReadinessUsesRegistryIndependentlyOfHeartbeat(t *testing.T) {
+	a := newQuotaTestApp(t)
+	var inventory atomic.Value
+	inventory.Store(`{"plugins":[{"id":"cpa-group-scheduler","registered":true,"effective_enabled":true,"metadata":{"version":"1.0.0"}}]}`)
+	var status atomic.Int32
+	status.Store(200)
+	cpa := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v8/management/plugins" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer test-management-key" {
+			http.Error(w, "missing authorization", 401)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(int(status.Load()))
+		_, _ = w.Write([]byte(inventory.Load().(string)))
+	}))
+	defer cpa.Close()
+	configureKeeperTestCPA(t, a, cpa.URL, func(cfg *AppConfig) { cfg.CodexKeeper.MaxRetries = 0 })
+	handler := a.Routes()
+	setup := httptest.NewRecorder()
+	handler.ServeHTTP(setup, httptest.NewRequest(http.MethodPost, "/api/auth/setup", bytes.NewBufferString(`{"username":"admin","password":"test-password","nickname":"Admin"}`)))
+	if setup.Code < 200 || setup.Code >= 300 {
+		t.Fatalf("setup failed: %d", setup.Code)
+	}
+	get := func() map[string]any {
+		r := httptest.NewRequest(http.MethodGet, "/api/upstreams/group-scheduler", nil)
+		for _, cookie := range setup.Result().Cookies() {
+			r.AddCookie(cookie)
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		var body map[string]any
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &body) != nil {
+			t.Fatalf("status response: %d %s", w.Code, w.Body.String())
+		}
+		return body
+	}
+	if got := get(); got["phase"] != "ready" || got["loaded"] != true || got["active"] != false {
+		t.Fatalf("idle loaded plugin misreported: %#v", got)
+	}
+	path := a.groupSchedulerPath() + ".status"
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	heartbeat, _ := json.Marshal(map[string]any{"picked_at": time.Now()})
+	if err := os.WriteFile(path, heartbeat, 0600); err != nil {
+		t.Fatal(err)
+	}
+	inventory.Store(`{"plugins":[{"id":"cpa-group-scheduler","registered":true,"effective_enabled":false}]}`)
+	if got := get(); got["phase"] != "disabled" || got["loaded"] != false || got["active"] != false {
+		t.Fatalf("heartbeat overrode disabled registry: %#v", got)
+	}
+	status.Store(503)
+	if got := get(); got["phase"] != "unknown" || got["loaded"] != false {
+		t.Fatalf("registry outage reported missing/ready: %#v", got)
+	}
+	status.Store(200)
+	inventory.Store(`{"plugins":[]}`)
+	if got := get(); got["phase"] != "missing" {
+		t.Fatalf("missing plugin not identified: %#v", got)
+	}
+}
 
 func TestAntigravityMaintenanceContinuesPastInvalidCredential(t *testing.T) {
 	now := time.Now().UTC()

@@ -42,13 +42,14 @@ defineProps<{
   align-items: center;
   overflow: hidden;
   padding: 72px 48px;
-  background: var(--ll-desk);
+  background: var(--muted);
 }
 
 .auth-brand-panel::before {
   position: absolute;
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--ll-ink) 35%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 24px;
   inset: 24px;
   content: "";
 }
@@ -75,13 +76,13 @@ defineProps<{
 
 .brand-word-cpa {
   justify-self: start;
-  color: var(--ll-ink);
+  color: var(--foreground);
   font-size: 148px;
 }
 
 .brand-word-helper {
   justify-self: end;
-  color: var(--ll-ink);
+  color: var(--foreground);
   font-size: 116px;
 }
 
@@ -92,7 +93,7 @@ defineProps<{
   justify-items: center;
   gap: 24px;
   padding: 48px;
-  background: var(--ll-paper);
+  background: var(--card);
 }
 
 .brand-mark {

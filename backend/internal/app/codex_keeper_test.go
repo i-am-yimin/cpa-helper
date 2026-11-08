@@ -764,7 +764,7 @@ func TestKeeperAuthFileManagementUsesMultipartAndSupportsInvalidPreview(t *testi
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"files": []map[string]any{
-					{"name": "valid.json", "type": "codex", "note": remoteNote},
+					{"name": "valid.json", "type": "codex", "note": remoteNote, "priority": updatedFields["priority"]},
 					{"name": "challenge.json", "type": "codex"},
 				},
 			})
@@ -1240,10 +1240,10 @@ func TestKeeperRunMaintainsSystemPriorityRules(t *testing.T) {
 
 	expectedPriorities := map[string]int{
 		"free-null.json":         0,
-		"free-quota-null.json":   -1,
+		"free-quota-null.json":   0,
 		"k12-wrong.json":         2,
 		"plus-wrong.json":        4,
-		"manual-quota-high.json": -1,
+		"manual-quota-high.json": 100,
 		"manual-high.json":       21,
 		"manual-low.json":        -2,
 	}
@@ -1251,10 +1251,8 @@ func TestKeeperRunMaintainsSystemPriorityRules(t *testing.T) {
 
 	mu.Lock()
 	expectedPatches := map[string][]int{
-		"free-quota-null.json":   {-1},
-		"k12-wrong.json":         {2},
-		"plus-wrong.json":        {4},
-		"manual-quota-high.json": {-1},
+		"k12-wrong.json":  {2},
+		"plus-wrong.json": {4},
 	}
 	assertKeeperPriorityPatchesLocked(t, patches, expectedPatches)
 	mu.Unlock()
@@ -1266,7 +1264,8 @@ func TestKeeperRunMaintainsSystemPriorityRules(t *testing.T) {
 	assertKeeperPriorities(t, response, expectedPriorities)
 
 	mu.Lock()
-	expectedPatches["manual-quota-high.json"] = []int{-1, 100}
+	// No explicit guard was enabled; the old inspection threshold cannot
+	// create a persistent quota pause or reinterpret historical priorities.
 	assertKeeperPriorityPatchesLocked(t, patches, expectedPatches)
 	mu.Unlock()
 }
@@ -1767,8 +1766,8 @@ func TestKeeperRefreshAccountsDisablesBadCredentialAndAppliesPriorityPolicy(t *t
 	}
 
 	quota := items["quota-high.json"]
-	if quota.Priority == nil || *quota.Priority != -1 {
-		t.Fatalf("quota-high priority = %v, want -1", quota.Priority)
+	if quota.Priority == nil || *quota.Priority != 0 {
+		t.Fatalf("quota-high priority = %v, want 0 without an explicit quota guard", quota.Priority)
 	}
 	if quota.LastError != nil {
 		t.Fatalf("quota-high last_error = %v, want nil", *quota.LastError)
@@ -1805,8 +1804,8 @@ func TestKeeperRefreshAccountsDisablesBadCredentialAndAppliesPriorityPolicy(t *t
 	if statusPatchCount != 1 {
 		t.Fatalf("status patch count = %d, want 1", statusPatchCount)
 	}
-	if priorityPatchCount != 2 {
-		t.Fatalf("priority patch count = %d, want 2", priorityPatchCount)
+	if priorityPatchCount != 1 {
+		t.Fatalf("priority patch count = %d, want 1", priorityPatchCount)
 	}
 }
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import type { CodexQuotaPolicy } from '../../src/shared/types/api'
 
 // All accounts and traffic in these captures are synthetic test fixtures.
 async function fixture(page: Page) {
@@ -9,7 +10,7 @@ async function fixture(page: Page) {
   const now = new Date().toISOString()
   const reset = new Date(Date.now() + 3 * 3600000).toISOString()
   const usage = { records: 18, total_tokens: 152000, estimated_cost_usd: 0.42, unpriced_records: 0, reset_at: reset, stale: false }
-  const accounts = [
+  const accounts: Array<Record<string, unknown>> = [
     { name: 'codex-team.json', email: 'codex-team@example.test', provider: 'codex', account_type: 'plus', priority: 4, disabled: false, primary_used_percent: 24, secondary_used_percent: 50, primary_window_usage: usage },
     { name: 'antigravity-team.json', email: 'antigravity-team@example.test', provider: 'antigravity', priority: 0, disabled: false },
   ]
@@ -33,7 +34,7 @@ async function fixture(page: Page) {
         group.priority = Number(savedGroup?.priority)
         group.model_patterns = savedGroup?.model_patterns as string[]
         data = { groups, checked_at: now, stale: false }
-      } else data = { active: true, last_pick_at: now }
+      } else data = { active: false, phase: 'ready', loaded: true, last_pick_at: '0001-01-01T00:00:00Z' }
     } else if (path === '/api/upstreams') { upstreamReads++; data = { sections: { 'openai-compatibility': upstreamItems }, api_version: 8, revision: '"revision-1"' } }
     else if (path === '/api/upstreams/openai-compatibility') {
       savedUpstream = route.request().postDataJSON()
@@ -43,7 +44,7 @@ async function fixture(page: Page) {
     else if (path === '/api/codex-keeper/status') data = { logs: [], stats: {}, running_modes: [], running: false }
     await route.fulfill({ json: data })
   })
-  return { groups, getSavedGroup: () => savedGroup, getSavedUpstream: () => savedUpstream, getUpstreamReads: () => upstreamReads }
+  return { accounts, groups, getSavedGroup: () => savedGroup, getSavedUpstream: () => savedUpstream, getUpstreamReads: () => upstreamReads }
 }
 
 test('unified upstreams edit API priorities with revision and independent Antigravity group rules', async ({ page }) => {
@@ -108,6 +109,61 @@ test('native API toggles preserve exclusions and show distinct credential identi
   await expect(third.getByRole('switch')).toBeChecked()
 })
 
+test('idle plugin stays loaded and Codex quota pauses require cancelling rules and explicit resume', async ({ page }) => {
+  const state = await fixture(page)
+  const policy: CodexQuotaPolicy = { mode: 'custom', five_hour_remaining: 10, week_remaining: null, paused: true, reason: '5 小时剩余额度 8% ≤ 下限 10%', manual_disabled: false, credential_blocked: false, sync_state: 'paused', paused_at: new Date().toISOString(), version: 1 }
+  const codex = state.accounts[0]!
+  Object.assign(codex, { quota_policy: policy, disabled: true, priority: -1 })
+  let savedRule: unknown, resumeCalls = 0
+  await page.route('**/api/codex-keeper/accounts/codex-team.json/quota-policy', async route => {
+    savedRule = route.request().postDataJSON()
+    Object.assign(policy, savedRule)
+    await route.fulfill({ json: policy })
+  })
+  await page.route('**/api/codex-keeper/accounts/codex-team.json/resume', async route => {
+    resumeCalls++
+    if (policy.mode !== 'off') return route.fulfill({ status: 409, json: { detail: { code: 'conflict', message: '仍保持暂停：5 小时剩余额度 8% ≤ 下限 10%' } } })
+    codex.priority = route.request().postDataJSON().priority
+    codex.disabled = false
+    policy.paused = false
+    policy.manual_priority = Number(codex.priority)
+    policy.sync_state = 'synced'
+    await route.fulfill({ json: { status: 'resumed' } })
+  })
+  await page.goto('/admin/upstreams')
+  await expect(page.getByText('分组插件已加载', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('待插件接入', { exact: true })).toHaveCount(0)
+  const row = page.locator('[data-upstream-row="oauth:codex-team.json"]')
+  await expect(row).toContainText('额度触发暂停')
+  await row.getByRole('spinbutton').fill('0')
+  await row.getByRole('button', { name: '保存并恢复路由', exact: true }).click()
+  await expect(page.getByText('仍保持暂停：5 小时剩余额度 8% ≤ 下限 10%', { exact: true })).toBeVisible()
+  expect(codex.disabled).toBe(true)
+  await page.getByRole('button', { name: '放弃更改', exact: true }).click()
+  await row.getByRole('button', { name: '设置额度暂停规则' }).click()
+  const editor = page.getByRole('region', { name: 'Codex 低额度暂停规则' })
+  await expect(editor).toContainText('CPA 已确认停止路由')
+  await editor.evaluate(el => { const scroll = el.closest('.content-scroll'); if (scroll) scroll.scrollTop += el.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 24 })
+  await page.screenshot({ path: '../.impeccable/review/boardui-codex-pause.png', fullPage: true })
+  await editor.getByRole('combobox', { name: '额度规则模式' }).click()
+  await page.getByRole('option', { name: '关闭规则', exact: true }).click()
+  await expect(page.getByText('当前有未保存更改，自动刷新已暂停。')).toBeVisible()
+  await editor.getByRole('button', { name: '保存暂停规则', exact: true }).click()
+  await expect.poll(() => savedRule).toMatchObject({ mode: 'off' })
+  expect(codex.disabled).toBe(true)
+  await expect(page.getByText('当前有未保存更改，自动刷新已暂停。')).toHaveCount(0)
+  await row.getByRole('spinbutton').fill('0')
+  await row.getByRole('button', { name: '保存并恢复路由', exact: true }).click()
+  await expect(row.getByRole('switch')).toBeChecked()
+  await expect(row).toContainText('手动优先级 0')
+  expect(resumeCalls).toBe(2)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(editor).toBeVisible()
+  await editor.evaluate(el => { const scroll = el.closest('.content-scroll'); if (scroll) scroll.scrollTop += el.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 24 })
+  expect(await page.locator('.content-scroll').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await page.screenshot({ path: '../.impeccable/review/boardui-codex-mobile.png', fullPage: true })
+})
+
 test('an inline draft blocks reloading and switching editors until saved or discarded', async ({ page }) => {
   await page.clock.install()
   const state = await fixture(page)
@@ -136,6 +192,7 @@ test('unified upstreams fit mobile and dark mode, retain filtering and old route
   expect(await page.locator('.content-scroll').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
   await page.screenshot({ path: '../.impeccable/review/upstream-hub-mobile.png', fullPage: true })
   await page.setViewportSize({ width: 768, height: 1000 })
+  await expect(page.locator('.hub-table tbody')).toHaveCSS('display', 'block')
   expect(await page.locator('.content-scroll').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
   await page.screenshot({ path: '../.impeccable/review/upstream-hub-tablet.png', fullPage: true })
   await page.getByRole('textbox', { name: '搜索上游' }).fill('antigravity')
