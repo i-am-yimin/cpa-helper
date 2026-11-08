@@ -1,6 +1,6 @@
 # Codex 低额度暂停路由设计
 
-状态：已实现并完成本地回归；发布由仓库的 Deploy AI Gateway 流水线执行。
+状态：已实现并部署至生产，代码 `544b67e`；[构建与部署记录](https://github.com/i-am-yimin/cpa-helper/actions/runs/42519174069) 通过。管理员尚需按实际需求配置并启用阈值。
 
 ## 目标与现状
 

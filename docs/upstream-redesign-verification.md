@@ -40,3 +40,11 @@ SHA-256：`b6a4743643a68748fd84710549704f5a57f23f615f69350699d6fd30a4eddfad`
 - `npm run lint`、`npm run test:i18n`、`npm run build`、6 项部署测试和 OIDC 绑定工具测试通过。SQLite 迁移、PostgreSQL SQL 链、导入表清单、启动就绪版本同步为 `202611090001`；未执行 PostgreSQL 实库验收。
 - 1440/768/390 视图、深色模式、全局规则及暂停明细截图已检查。列表按 959px 内容宽度切换卡片行，避免侧栏挤压后隐藏启用开关。独立视觉复核认可 BoardUI 替换与布局；两项对比度修复经复核均为 resolved，最终 disposition 为 `ship`（该轮结论范围为所列修复）。
 - 设计令牌 YAML 与 schema-v2 sidecar 通过校验，9 个片段已在 Chrome shadow DOM 中渲染验证。截图和测试数据均来自隔离环境，未设置生产阈值或修改生产凭证状态。
+
+### 本次生产验收
+
+- 生产代码 `544b67ebf2e532da1bbf8927eed578152c014acb`；[Deploy AI Gateway #42519174069](https://github.com/i-am-yimin/cpa-helper/actions/runs/42519174069) 的构建和部署均成功。镜像 digest 为 `sha256:a2597b574e4cd8ad7f71d761b5d51496f187b0ded236aee6642483d94659f1d8`。
+- 公网 `/api/ready` 返回 200，当前与目标版本均为 `202611090001`。生产 CSS 包含 BoardUI 主题和 Inter；实际 WOFF2 字体返回 200、48,256 bytes，BoardUI 与字体授权资源均可读取。
+- Core 确认原生分组插件已注册、有效启用，版本 `1.0.0`；一笔受控请求返回 HTTP 200，并更新原生调度心跳。已有管理员和设置保留。
+- 未认证的额度规则接口与模型接口均返回 401；公网 V8 管理接口返回 404。生产登录按现有配置跳转 OIDC 身份服务。
+- 前一构建在发布前被“过期提交”检查拦截，没有覆盖较新的修复；最终部署提交包含凭证异常及健康恢复过程中继续维持暂停 `-1` 的回归保护。
