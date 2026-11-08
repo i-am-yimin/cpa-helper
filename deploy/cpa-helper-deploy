@@ -15,20 +15,21 @@ python=/usr/bin/python3
 exec 9>/var/lock/cpa-helper-deploy.lock
 flock -n 9 || { echo 'Another gateway deployment is active.' >&2; exit 75; }
 mkdir -p "$root/releases" "$root/backups"
+repo_git() { (cd "$repo" && git "$@"); }
 if [[ ! -d $repo/.git ]]; then
   mkdir -p "$repo"
-  git -C "$repo" init -q
-  git -C "$repo" remote add origin https://github.com/i-am-yimin/cpa-helper.git
+  repo_git init -q
+  repo_git remote add origin https://github.com/i-am-yimin/cpa-helper.git
 fi
-[[ $(git -C "$repo" remote get-url origin) == https://github.com/i-am-yimin/cpa-helper.git ]] || exit 65
-git -C "$repo" fetch --depth=1 origin ext:refs/remotes/origin/ext
-[[ $(git -C "$repo" rev-parse origin/ext) == "$sha" ]] || {
+[[ $(repo_git config --get remote.origin.url) == https://github.com/i-am-yimin/cpa-helper.git ]] || exit 65
+repo_git fetch --depth=1 origin ext:refs/remotes/origin/ext
+[[ $(repo_git rev-parse origin/ext) == "$sha" ]] || {
   echo 'Refusing to deploy a superseded commit.' >&2; exit 65;
 }
 
 release="$root/releases/$sha"
 mkdir -p "$release"
-git -C "$repo" archive "$sha" deploy | tar -x -C "$release"
+repo_git archive "$sha" deploy | tar -x -C "$release"
 core_image=$(tr -d '\r\n' < "$release/deploy/core-image.txt")
 [[ $core_image =~ ^eceasy/cli-proxy-api@sha256:[0-9a-f]{64}$ ]] || exit 65
 printf 'CPA_HELPER_IMAGE=%s\nCLI_PROXY_IMAGE=%s\n' "$image" "$core_image" > "$release/.env"

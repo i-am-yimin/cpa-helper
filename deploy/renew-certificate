@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ ${RENEWED_LINEAGE:-} == /etc/letsencrypt/live/aigateway.nigulas.top ]] || exit 0
+/usr/local/openresty/bin/openresty -t
+/usr/local/openresty/bin/openresty -s reload

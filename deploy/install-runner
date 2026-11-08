@@ -15,6 +15,9 @@ version=$(env LD_LIBRARY_PATH="$runtime/lib" DOTNET_SYSTEM_GLOBALIZATION_INVARIA
 [[ $version == 2.338.0 ]] || { echo 'Review the existing runner runtime before installation.' >&2; exit 65; }
 id "$user" >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/cpa-helper-runner --shell /sbin/nologin "$user"
 install -o root -g root -m 0750 "$source_repo/deploy/cpa-helper-deploy" /usr/local/sbin/cpa-helper-deploy
+if [[ -f $source_repo/deploy/renew-certificate ]]; then
+  install -o root -g root -m 0750 "$source_repo/deploy/renew-certificate" /etc/letsencrypt/renewal-hooks/deploy/cpa-helper
+fi
 rule=$(mktemp)
 trap 'rm -f "$rule"' EXIT
 printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/cpa-helper-deploy *\n' "$user" > "$rule"

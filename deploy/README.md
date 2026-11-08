@@ -34,6 +34,8 @@ No pull-request workflow targets this production runner.
 
 The production host uses CentOS 7. `install-runner` reuses the already installed compatible public
 runner 2.338.0 runtime and its private compatibility library without copying any existing runner credentials.
+Its small service supervisor uses the existing, checksum-verified CentOS-compatible Node 16 binary;
+application builds and JavaScript actions execute only on the current GitHub-hosted Linux runner.
 Automatic runner updates are disabled; update this isolated runtime deliberately when required by GitHub.
 
 One-time installation as root, with a short-lived repository registration token on stdin:
@@ -64,3 +66,7 @@ Backups and failed-upgrade state are private under `/opt/ai-gateway/backups`.
 Keep a separate off-host copy before major upgrades. Review backup retention and available disk regularly.
 Container logs are bounded at three 5 MB files per service. Never remove persistent directories or Docker volumes during cache cleanup.
 Core upgrades require an explicit edit of `core-image.txt`; this pins the audited image digest rather than following `latest` on every restart.
+
+The OpenResty site is mirrored into the user's nginx-ui operations repository so infrastructure
+reapplication retains it. `renew-certificate` is installed as a dedicated Certbot deploy hook;
+it tests and reloads OpenResty only when this domain's certificate is renewed.
