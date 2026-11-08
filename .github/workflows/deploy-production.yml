@@ -33,6 +33,18 @@ jobs:
       - name: Frontend validation
         working-directory: frontend
         run: npm ci --prefer-offline --no-audit --no-fund && npm run lint && npm run test:i18n
+      - name: Antigravity UI regression
+        working-directory: frontend
+        run: |
+          npx playwright install --with-deps chromium --only-shell
+          npm run dev -- --host 127.0.0.1 --port 5174 --strictPort > /tmp/cpa-helper-vite.log 2>&1 &
+          VITE_PID=$!
+          trap 'kill "$VITE_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5174/ > /dev/null; then break; fi
+            sleep 1
+          done
+          npx playwright test antigravity-quota.spec.ts
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod

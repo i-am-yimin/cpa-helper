@@ -1,5 +1,6 @@
 import { apiClient } from '@/shared/api/apiClient'
 import type {
+  AntigravityQuotaSnapshot,
   CodexKeeperAuthFileDetail,
   CodexKeeperAuthFileFields,
   CodexKeeperAuthFileModelsResponse,
@@ -18,6 +19,11 @@ import type {
   CodexKeeperStatus,
   CredentialOAuthProvider,
 } from '@/shared/types/api'
+
+export function getAntigravityQuota(name: string, force = false): Promise<AntigravityQuotaSnapshot> {
+  const path = `/codex-keeper/accounts/${encodeURIComponent(name)}/quota`
+  return force ? apiClient.post<AntigravityQuotaSnapshot>(path) : apiClient.get<AntigravityQuotaSnapshot>(path)
+}
 
 export function uploadCodexKeeperAuthFiles(files: File[]): Promise<CodexKeeperAuthFileUploadResponse> {
   const form = new FormData()

@@ -92,6 +92,7 @@ import {
   deleteCodexKeeperAccount,
   disableCodexKeeperAccount,
   enableCodexKeeperAccount,
+  getAntigravityQuota,
   getCodexKeeperAuthFile,
   getCodexKeeperAuthFileModels,
   getCodexKeeperOAuthStatus,
@@ -108,8 +109,10 @@ import {
   uploadCodexKeeperAuthFiles,
 } from '@/features/codex-keeper/api/codexKeeperApi'
 import CodexKeeperLogsPanel from '@/features/codex-keeper/components/CodexKeeperLogsPanel.vue'
+import AntigravityQuotaPanel from '@/features/codex-keeper/components/AntigravityQuotaPanel.vue'
 import { useCurrentUser } from '@/features/auth/state/currentUser'
 import type {
+  AntigravityQuotaSnapshot,
   CodexKeeperAccount,
   CodexKeeperAuthFileFields,
   CodexKeeperAuthFileModel,
@@ -207,6 +210,8 @@ const message = toast
 const { credentialServerText, errorText, keeperStatusText, t } = useI18n()
 const { currentUser } = useCurrentUser()
 const canManageAccounts = computed(() => currentUser.value?.is_admin === true)
+const antigravityQuotas = ref<Record<string, AntigravityQuotaSnapshot>>({})
+const loadingAntigravityQuotas = ref(new Set<string>())
 const accountPageTitle = computed(() =>
   canManageAccounts.value ? t('凭证管理', 'Credential Management') : t('凭证状态', 'Credential Status'),
 )
@@ -574,7 +579,7 @@ const canBulkDelete = computed(() =>
   selectedAccountCount.value > 0 && !isBulkOperationRunning.value,
 )
 const canRefreshSelected = computed(
-  () => selectedAccounts.value.some(isCodexCredential) && !isBulkOperationRunning.value && !isLoading.value,
+  () => selectedAccounts.value.some(canRefreshCredential) && !isBulkOperationRunning.value && !isLoading.value,
 )
 const canBulkEnable = computed(
   () => selectedDisabledAccounts.value.length > 0 && !isBulkOperationRunning.value,
@@ -878,6 +883,51 @@ function credentialActivityAt(account: CodexKeeperAccount): string | null {
 
 function isCodexCredential(account: CodexKeeperAccount | null | undefined): boolean {
   return account?.provider?.trim().toLowerCase() === 'codex'
+}
+
+function isAntigravityCredential(account: CodexKeeperAccount | null | undefined): boolean {
+  return account?.provider?.trim().toLowerCase() === 'antigravity'
+}
+
+function canRefreshCredential(account: CodexKeeperAccount): boolean {
+  return isCodexCredential(account) || (isAntigravityCredential(account) && !account.disabled)
+}
+
+async function loadAntigravityQuota(account: CodexKeeperAccount, force = false) {
+  if (account.disabled || loadingAntigravityQuotas.value.has(account.name)) return
+  loadingAntigravityQuotas.value = new Set([...loadingAntigravityQuotas.value, account.name])
+  try {
+    antigravityQuotas.value[account.name] = await getAntigravityQuota(account.name, force)
+  } catch (error) {
+    const previous = antigravityQuotas.value[account.name]
+    antigravityQuotas.value[account.name] = {
+      groups: previous?.groups ?? [],
+      checked_at: previous?.checked_at ?? null,
+      attempted_at: new Date().toISOString(),
+      error: errorText(error, '查询 Antigravity 额度失败', 'Failed to load Antigravity quota'),
+      stale: (previous?.groups.length ?? 0) > 0,
+    }
+  } finally {
+    const next = new Set(loadingAntigravityQuotas.value)
+    next.delete(account.name)
+    loadingAntigravityQuotas.value = next
+  }
+}
+
+async function loadVisibleAntigravityQuotas() {
+  const pending = visibleListAccounts.value.filter((account) => {
+    if (!isAntigravityCredential(account) || account.disabled) return false
+    const quota = antigravityQuotas.value[account.name]
+    if (!quota) return true
+    const ttl = quota.error ? 60_000 : 300_000
+    const resetDue = quota.groups.some((group) => group.buckets.some((bucket) =>
+      bucket.reset_at && Date.parse(bucket.reset_at) > Date.parse(quota.attempted_at) && Date.parse(bucket.reset_at) <= Date.now(),
+    ))
+    return Date.now() - Date.parse(quota.attempted_at) >= ttl || resetDue
+  })
+  for (let offset = 0; offset < pending.length; offset += 4) {
+    await Promise.all(pending.slice(offset, offset + 4).map((account) => loadAntigravityQuota(account)))
+  }
 }
 
 function isCredentialMutable(account: CodexKeeperAccount | null | undefined): boolean {
@@ -1260,6 +1310,14 @@ async function loadAccounts() {
       listCodexKeeperAccounts(),
       getCodexKeeperStatus(),
     ])
+    const previousAccounts = new Map(accounts.value.map((account) => [account.name, account]))
+    for (const [name] of Object.entries(antigravityQuotas.value)) {
+      const next = accountsResponse.items.find((account) => account.name === name)
+      const previous = previousAccounts.get(name)
+      if (!next || next.auth_index !== previous?.auth_index || next.modified_at !== previous?.modified_at || next.disabled !== previous?.disabled) {
+        delete antigravityQuotas.value[name]
+      }
+    }
     accounts.value = accountsResponse.items
     accountListDegraded.value = accountsResponse.degraded === true
     if (selectedAccount.value) {
@@ -2396,7 +2454,7 @@ function refreshAccount(account: CodexKeeperAccount, options: { closeDetail?: bo
 
 async function refreshSelectedAccounts() {
   await refreshAccounts(
-    selectedAccounts.value.filter(isCodexCredential).map((account) => account.name),
+    selectedAccounts.value.filter(canRefreshCredential).map((account) => account.name),
     { clearSelection: true },
   )
 }
@@ -2454,8 +2512,20 @@ async function refreshAccounts(
     isBulkRefreshing.value = true
   }
   try {
-    await refreshCodexKeeperAccounts({ auth_names: authNames })
-    message.success(options.successMessage ?? (authNames.length === 1
+    const antigravityAccounts = accounts.value.filter((account) => authNames.includes(account.name) && isAntigravityCredential(account))
+    const codexNames = authNames.filter((name) => !antigravityAccounts.some((account) => account.name === name))
+    for (let offset = 0; offset < antigravityAccounts.length; offset += 4) {
+      await Promise.all(antigravityAccounts.slice(offset, offset + 4).map((account) => loadAntigravityQuota(account, true)))
+    }
+    if (codexNames.length > 0) {
+      await refreshCodexKeeperAccounts({ auth_names: codexNames })
+      void pollKeeperModeUntilIdle('accounts')
+    }
+    const quotaError = antigravityAccounts.map((account) => antigravityQuotas.value[account.name]?.error).find(Boolean)
+    if (quotaError) throw new Error(quotaError)
+    message.success(options.successMessage ?? (codexNames.length === 0
+      ? t('额度已更新', 'Quota updated')
+      : authNames.length === 1
       ? t('已开始刷新凭证', 'Started refreshing credential')
       : t(`已开始刷新 ${authNames.length} 份凭证`, `Started refreshing ${authNames.length} credentials`)))
     if (options.closeDetail) {
@@ -2464,7 +2534,6 @@ async function refreshAccounts(
     if (options.clearSelection) {
       selectedAccountKeys.value = []
     }
-    void pollKeeperModeUntilIdle('accounts')
   } catch (error) {
     message.error(errorText(error, '刷新凭证失败', 'Failed to refresh credentials'))
   } finally {
@@ -2537,13 +2606,17 @@ watch(
   resetAccountPages,
 )
 watch(accountListPageCount, clampAccountPages)
-watch(visibleListAccounts, pruneSelectedAccountKeys)
+watch(visibleListAccounts, () => {
+  pruneSelectedAccountKeys()
+  void loadVisibleAntigravityQuotas()
+})
 
 onMounted(() => {
   void loadAccounts()
   keeperStatusTimer = window.setInterval(() => {
     relativeTimeNow.value = Date.now()
     void loadKeeperStatus()
+    void loadVisibleAntigravityQuotas()
   }, KEEPER_STATUS_POLL_INTERVAL_MS)
 })
 
@@ -2897,28 +2970,33 @@ onBeforeUnmount(() => {
                     </div>
                   </TableCell>
                   <TableCell><span class="account-table-chip is-priority" :title="t(`优先级 ${formatInteger(accountPriority(row))}`, `Priority ${formatInteger(accountPriority(row))}`)">{{ formatInteger(accountPriority(row)) }}</span></TableCell>
-                  <TableCell>
-                    <div v-if="quotaWindowItems(row).length" class="quota-window-cell">
-                      <div v-for="item in quotaWindowItems(row)" :key="item.label" class="quota-window-item" :title="quotaWindowTooltip(item)">
-                        <div class="quota-window-head">
-                          <span class="quota-window-label">{{ item.label }}</span>
-                          <span class="quota-window-percent">{{ item.remainingPercent }}%</span>
-                        </div>
-                        <div class="quota-window-track">
-                          <div class="quota-window-fill" :class="quotaBarTone(item.remainingPercent)" :style="{ width: `${item.remainingPercent}%` }" />
+                  <TableCell v-if="isAntigravityCredential(row)" :colspan="2">
+                    <AntigravityQuotaPanel :quota="antigravityQuotas[row.name]" :loading="loadingAntigravityQuotas.has(row.name)" :disabled="row.disabled" :can-refresh="canManageAccounts" @refresh="refreshAccount(row)" />
+                  </TableCell>
+                  <template v-else>
+                    <TableCell>
+                      <div v-if="quotaWindowItems(row).length" class="quota-window-cell">
+                        <div v-for="item in quotaWindowItems(row)" :key="item.label" class="quota-window-item" :title="quotaWindowTooltip(item)">
+                          <div class="quota-window-head">
+                            <span class="quota-window-label">{{ item.label }}</span>
+                            <span class="quota-window-percent">{{ item.remainingPercent }}%</span>
+                          </div>
+                          <div class="quota-window-track">
+                            <div class="quota-window-fill" :class="quotaBarTone(item.remainingPercent)" :style="{ width: `${item.remainingPercent}%` }" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <span v-else>-</span>
-                  </TableCell>
-                  <TableCell>
-                    <div v-if="quotaWindowItems(row).length" class="quota-reset-cell">
-                      <span v-for="item in quotaWindowItems(row)" :key="item.label" class="quota-reset-item" :title="quotaWindowTooltip(item)">
-                        {{ formatQuotaResetTime(item.resetAt) ?? '-' }}
-                      </span>
-                    </div>
-                    <span v-else>-</span>
-                  </TableCell>
+                      <span v-else>-</span>
+                    </TableCell>
+                    <TableCell>
+                      <div v-if="quotaWindowItems(row).length" class="quota-reset-cell">
+                        <span v-for="item in quotaWindowItems(row)" :key="item.label" class="quota-reset-item" :title="quotaWindowTooltip(item)">
+                          {{ formatQuotaResetTime(item.resetAt) ?? '-' }}
+                        </span>
+                      </div>
+                      <span v-else>-</span>
+                    </TableCell>
+                  </template>
                   <TableCell>
                     <div v-if="quotaWindowItems(row).length" class="quota-usage-cell">
                       <div v-for="item in quotaWindowItems(row)" :key="item.label" class="quota-usage-item" :class="quotaWindowUsageTone(item)" :title="quotaWindowUsageTitle(item)">
@@ -2978,7 +3056,7 @@ onBeforeUnmount(() => {
                             <ShieldCheck v-if="row.disabled" /><PauseCircle v-else />
                             <span>{{ row.disabled ? t('启用', 'Enable') : t('禁用', 'Disable') }}</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem v-if="isCodexCredential(row)" :disabled="isRowActing(row) || isBulkOperationRunning" @select="refreshAccount(row)"><RefreshCw /><span>{{ t('巡检', 'Inspect') }}</span></DropdownMenuItem>
+                          <DropdownMenuItem v-if="canRefreshCredential(row)" :disabled="isRowActing(row) || isBulkOperationRunning" @select="refreshAccount(row)"><RefreshCw /><span>{{ isAntigravityCredential(row) ? t('刷新额度', 'Refresh quota') : t('巡检', 'Inspect') }}</span></DropdownMenuItem>
                         </DropdownMenuGroup>
                         <DropdownMenuSeparator v-if="isCredentialMutable(row)" />
                         <DropdownMenuItem v-if="isCredentialMutable(row)" variant="destructive" :disabled="isRowActing(row) || isBulkOperationRunning" @select="confirmDeleteAccount(row)"><Trash2 /><span>{{ t('删除', 'Delete') }}</span></DropdownMenuItem>
@@ -3077,6 +3155,10 @@ onBeforeUnmount(() => {
               <Badge v-for="model in selectedAccountModels" :key="model.id" variant="secondary" :title="model.display_name || model.id">{{ model.id }}</Badge>
               <span v-if="selectedAccountModels.length === 0" class="text-sm text-muted-foreground">{{ t('该凭证当前没有已注册模型', 'No models are currently registered for this credential') }}</span>
             </div>
+          </section>
+          <section v-if="selectedAccount && isAntigravityCredential(selectedAccount)" class="detail-section">
+            <h3>{{ t('Antigravity 额度', 'Antigravity quota') }}</h3>
+            <AntigravityQuotaPanel :quota="antigravityQuotas[selectedAccount.name]" :loading="loadingAntigravityQuotas.has(selectedAccount.name)" :disabled="selectedAccount.disabled" :can-refresh="canManageAccounts" @refresh="refreshAccount(selectedAccount)" />
           </section>
           <section v-if="selectedAccount && selectedAccountQuotaObservations.length > 0" class="detail-section">
             <div class="detail-section-heading">
@@ -3214,7 +3296,7 @@ onBeforeUnmount(() => {
               {{ t('认证文件管理', 'Auth File Management') }}
             </Button>
             <Button
-              v-if="isCodexCredential(selectedAccount)"
+              v-if="canRefreshCredential(selectedAccount)"
               size="sm"
               variant="outline"
               :disabled="isRowActing(selectedAccount) || isBulkOperationRunning"

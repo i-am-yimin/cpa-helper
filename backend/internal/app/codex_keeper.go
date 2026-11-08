@@ -941,11 +941,27 @@ func (a *App) handleCodexKeeper(w http.ResponseWriter, r *http.Request) error {
 	if len(parts) == 0 {
 		return notFoundError("Not Found")
 	}
-	readOnlyStatusRequest := r.Method == http.MethodGet && len(parts) == 1 && (parts[0] == "status" || parts[0] == "accounts")
+	readOnlyStatusRequest := r.Method == http.MethodGet && ((len(parts) == 1 && (parts[0] == "status" || parts[0] == "accounts")) ||
+		(len(parts) == 3 && parts[0] == "accounts" && parts[2] == "quota"))
 	if !user.IsAdmin && (!user.CanViewAccountStatus || !readOnlyStatusRequest) {
 		return forbiddenError("需要管理员权限")
 	}
 	switch {
+	case len(parts) == 3 && parts[0] == "accounts" && parts[2] == "quota":
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			return requireMethod(r, http.MethodGet)
+		}
+		name, err := keeperAccountNameFromPath(parts[1])
+		if err != nil {
+			return err
+		}
+		quota, err := a.getAntigravityQuota(r.Context(), name, r.Method == http.MethodPost)
+		if err != nil {
+			return err
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, quota)
+		return nil
 	case len(parts) == 1 && parts[0] == "settings":
 		if r.Method == http.MethodGet {
 			cfg, err := a.loadConfig(r.Context())

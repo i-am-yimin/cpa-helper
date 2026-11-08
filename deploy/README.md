@@ -82,6 +82,21 @@ Emergency password recovery requires an SSH tunnel to `127.0.0.1:18317` and
 
 ## Operations
 
+### Antigravity quota
+
+The credential page queries Antigravity's `retrieveUserQuotaSummary` through
+CLIProxyAPI's authenticated server-side `api-call`. It shows the groups and quota
+windows returned by the provider, including remaining percentages and reset times.
+OAuth tokens stay in CLIProxyAPI; project lookup and credential downloads remain
+server-side. Quota queries never change credential status, priority or routing.
+
+Successful queries are cached for five minutes or until the next reset, whichever
+comes first. Concurrent queries share a request. Failures back off for one minute
+and retain the last successful result with a stale marker. Administrators can
+refresh a single credential or a mixed Codex/Antigravity selection; account-status
+viewers can read cached quotas but cannot force a refresh. The UI regression runs
+in production CI with simulated quota responses, without production credentials.
+
 ```sh
 cd /opt/ai-gateway/current
 docker compose --project-name ai-gateway --env-file .env -f deploy/compose.yml ps

@@ -70,6 +70,7 @@ type App struct {
 	pricingCalendarSyncDone   chan struct{}
 	keeperUsageCache          keeperWindowUsageCache
 	keeperResetCache          keeperResetCreditCache
+	antigravityQuotaCache     antigravityQuotaCache
 	usageCache                usageQueryCache
 	quotaSyncMu               sync.Mutex
 	oidcMu                    sync.Mutex

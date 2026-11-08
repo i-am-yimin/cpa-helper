@@ -314,6 +314,23 @@ export interface CodexKeeperResetCredits {
   cached_at: string
 }
 
+export interface AntigravityQuotaSnapshot {
+  groups: Array<{
+    label: string
+    buckets: Array<{
+      id: string
+      label: string
+      window: string
+      remaining_percent: number
+      reset_at: string | null
+    }>
+  }>
+  checked_at: string | null
+  attempted_at: string
+  error: string | null
+  stale: boolean
+}
+
 export interface CodexKeeperAccount {
   name: string
   provider: string

@@ -4,6 +4,16 @@ type MessagePair = readonly [zh: string, en: string]
 type ServerMessagePattern = readonly [RegExp, (match: RegExpMatchArray) => string]
 
 const exactServerMessages: MessagePair[] = [
+  ['无法读取 CPA 凭证列表', 'Unable to load CPA credentials'],
+  ['该额度接口仅支持 Antigravity 凭证', 'This quota endpoint only supports Antigravity credentials'],
+  ['凭证已禁用，请启用后查询额度', 'Enable this credential before querying quota'],
+  ['凭证缺少 auth_index，请刷新凭证列表', 'The credential has no auth_index. Reload the credential list.'],
+  ['无法读取 Antigravity 项目信息', 'Unable to load Antigravity project information'],
+  ['凭证缺少 project_id，请重新授权 Antigravity', 'The credential has no project_id. Authorize Antigravity again.'],
+  ['Antigravity 未返回可展示的额度', 'Antigravity returned no quota information'],
+  ['无法连接 CPA 额度查询接口，请稍后重试', 'Unable to connect to the CPA quota endpoint. Try again later.'],
+  ['CPA 额度查询响应格式无效', 'Invalid response from the CPA quota endpoint'],
+  ['CPA 额度查询响应缺少状态码', 'The CPA quota response is missing its status code'],
   ['CPA 配置接口已变更，请重新加载后再保存', 'The CPA configuration API changed. Reload before saving.'],
   ['CPA 配置版本缺失，请重新加载后再保存', 'The CPA configuration revision is missing. Reload before saving.'],
   ['CPA 配置已被修改，请重新加载并核对后再保存', 'CPA configuration changed. Reload and review your changes before saving.'],
@@ -245,6 +255,7 @@ const serverTermTranslations: MessagePair[] = [
 ]
 
 const serverMessagePatterns: ServerMessagePattern[] = [
+  [/^Antigravity 额度查询失败（HTTP (\d+)）$/, ([, status]) => `Antigravity quota query failed (HTTP ${status})`],
   [/^OIDC (Issuer|公网地址)必须为 HTTPS 地址（本机调试可使用 HTTP），且不能包含查询参数或锚点$/, ([, field]) => `OIDC ${field === 'Issuer' ? 'issuer' : 'public URL'} must use HTTPS (HTTP is allowed for loopback testing), without query parameters or fragments`],
   [/^OIDC (退出地址|端点)必须为 HTTPS 地址（本机调试可使用 HTTP），且不能包含用户凭据或锚点$/, ([, field]) => `OIDC ${field === '退出地址' ? 'logout URL' : 'endpoint'} must use HTTPS (HTTP is allowed for loopback testing), without user credentials or fragments`],
   [/^操作失败$/, () => 'Operation failed'],
