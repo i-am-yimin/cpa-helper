@@ -4,10 +4,13 @@ umask 077
 [[ $EUID -eq 0 ]] || exit 77
 source_repo=${1:?deployment source directory required}
 runtime=/opt/actions-runner-ops-monitor
+compatible_node=/opt/actions-runner-authentik/externals/node16/bin/node
 target=/opt/actions-runner-cpa-helper
 user=cpadeploy
 [[ -f $source_repo/deploy/cpa-helper-deploy ]] || exit 66
 [[ -x $runtime/bin/Runner.Listener && -x $runtime/externals/node24/bin/node ]] || exit 69
+[[ -x $compatible_node ]] || exit 69
+printf '%s  %s\n' b8d56f907029dfcf1268e56ec145f1f512881f952c594e681f2eaa3ea9d172df "$compatible_node" | sha256sum --check --status
 version=$(env LD_LIBRARY_PATH="$runtime/lib" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 "$runtime/bin/Runner.Listener" --version)
 [[ $version == 2.338.0 ]] || { echo 'Review the existing runner runtime before installation.' >&2; exit 65; }
 id "$user" >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/cpa-helper-runner --shell /sbin/nologin "$user"
@@ -20,12 +23,12 @@ install -o root -g root -m 0440 "$rule" /etc/sudoers.d/cpa-helper-deploy
 install -d -o "$user" -g "$user" -m 0755 "$target"
 if [[ ! -f $target/.runner ]]; then
   IFS= read -r token
+  token=${token%$'\r'}
   [[ -n $token ]] || exit 78
   # Reuse only the already installed public runner distribution, never its
   # registration, credentials, work directory, environment, or service identity.
   cp -aL "$runtime/bin" "$target/"
-  install -d -m 0755 "$target/externals/node24/bin" "$target/lib"
-  install -m 0755 "$runtime/externals/node24/bin/node" "$target/externals/node24/bin/node"
+  install -d -m 0755 "$target/lib"
   install -m 0644 "$runtime/lib/libstdc++.so.6" "$target/lib/libstdc++.so.6"
   for script in config.sh env.sh run.sh runsvc.sh safe_sleep.sh svc.sh; do
     install -m 0755 "$runtime/$script" "$target/$script"
@@ -40,6 +43,10 @@ if [[ ! -f $target/.runner ]]; then
   )
   unset token
 fi
+install -d -o "$user" -g "$user" -m 0755 "$target/externals/node16/bin"
+install -o "$user" -g "$user" -m 0755 "$compatible_node" "$target/externals/node16/bin/node"
+sed -i 's/^nodever="node24"$/nodever="node16"/' "$target/runsvc.sh"
+grep -qx 'nodever="node16"' "$target/runsvc.sh" || exit 65
 if [[ ! -f $target/.service ]]; then
   (cd "$target" && ./svc.sh install "$user")
 fi
@@ -48,6 +55,7 @@ install -d -m 0755 "/etc/systemd/system/$service.d"
 printf '[Service]\nEnvironment=LD_LIBRARY_PATH=%s/lib\nEnvironment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1\n' "$target" \
   > "/etc/systemd/system/$service.d/override.conf"
 systemctl daemon-reload
-systemctl enable --now "$service"
+systemctl enable "$service"
+systemctl restart "$service"
 systemctl is-active --quiet "$service"
 echo 'Repository-scoped CPA deployment runner is active.'

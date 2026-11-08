@@ -3,7 +3,7 @@ name: Deploy AI Gateway
 on:
   push:
     branches: [ext]
-    paths: ['backend/**', 'frontend/**', 'Dockerfile', '.dockerignore', 'VERSION', 'deploy/**', '.github/workflows/deploy-production.yml']
+    paths: ['backend/**', 'frontend/**', 'Dockerfile', '.dockerignore', '.gitattributes', 'VERSION', 'deploy/**', '.github/workflows/deploy-production.yml', '.github/actionlint.yaml']
   workflow_dispatch:
 
 concurrency:
