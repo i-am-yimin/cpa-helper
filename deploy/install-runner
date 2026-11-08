@@ -18,6 +18,11 @@ install -o root -g root -m 0750 "$source_repo/deploy/cpa-helper-deploy" /usr/loc
 if [[ -f $source_repo/deploy/renew-certificate ]]; then
   install -o root -g root -m 0750 "$source_repo/deploy/renew-certificate" /etc/letsencrypt/renewal-hooks/deploy/cpa-helper
 fi
+if [[ -d $source_repo/deploy/systemd ]]; then
+  install -o root -g root -m 0644 "$source_repo/deploy/systemd/"* /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable --now cpa-helper-certbot-renew.timer
+fi
 rule=$(mktemp)
 trap 'rm -f "$rule"' EXIT
 printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/cpa-helper-deploy *\n' "$user" > "$rule"

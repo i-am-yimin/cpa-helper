@@ -22,7 +22,9 @@ if [[ ! -d $repo/.git ]]; then
   repo_git remote add origin https://github.com/i-am-yimin/cpa-helper.git
 fi
 [[ $(repo_git config --get remote.origin.url) == https://github.com/i-am-yimin/cpa-helper.git ]] || exit 65
-repo_git fetch --depth=1 origin ext:refs/remotes/origin/ext
+# Git 1.8 cannot prove ancestry between depth-one snapshots. This updates only
+# the local remote-tracking cache; the actual source commit is checked below.
+repo_git fetch --depth=1 origin +ext:refs/remotes/origin/ext
 [[ $(repo_git rev-parse origin/ext) == "$sha" ]] || {
   echo 'Refusing to deploy a superseded commit.' >&2; exit 65;
 }

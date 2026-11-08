@@ -10,7 +10,7 @@ neither upstream repository is a deployment target or push destination.
 - CLIProxyAPI: host loopback `127.0.0.1:8317`, persistent configuration, OAuth credentials and logs under `/opt/ai-gateway`.
 - nginx-ui's OpenResty node: `/` serves CPA-Helper; `/v1/` serves the model API with streaming and WebSocket support.
   Raw `/v0/management`, `/v8/management` and the bundled management page are blocked at the public proxy.
-- TLS: a dedicated Let's Encrypt certificate, renewed by the existing host Certbot timer.
+- TLS: a dedicated Let's Encrypt certificate, renewed by `cpa-helper-certbot-renew.timer`.
 
 The API base URL is `https://aigateway.nigulas.top/v1`.
 Upstream provider credentials are not bundled or copied from other services.

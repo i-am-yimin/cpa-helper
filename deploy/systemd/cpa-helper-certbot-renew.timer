@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily renewal check for AI Gateway HTTPS
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=cpa-helper-certbot-renew.service
+
+[Install]
+WantedBy=timers.target

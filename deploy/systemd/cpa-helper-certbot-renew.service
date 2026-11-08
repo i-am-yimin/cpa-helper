@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew the AI Gateway HTTPS certificate
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=PYTHONNOUSERSITE=1
+ExecStart=/usr/bin/certbot renew --cert-name aigateway.nigulas.top --non-interactive --no-random-sleep-on-renew
+TimeoutStartSec=5min
