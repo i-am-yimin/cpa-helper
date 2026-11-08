@@ -53,6 +53,33 @@ Credentials are stored only in `/opt/ai-gateway/secrets/bootstrap.json` (root-on
 They are never printed in CI logs or committed to Git. The password can be changed in the panel;
 later deployments preserve the current administrator and settings.
 
+## CAS account-center integration
+
+Normal browser sign-in uses the existing `cas.nigulas.top` authentik service
+through native OIDC authorization-code + PKCE. There is no public CPA password
+sign-in page or password-login API. Model API requests continue using API keys.
+
+The `CPA-Helper OIDC` provider has strict authorization/logout callbacks and its
+`AI Gateway` application is restricted to `infra-admin`. The explicitly selected
+CAS account `nigulas` is bound by verified immutable user UUID to the existing
+local administrator `i-am-yimin`; existing local roles, API keys and history are retained.
+Other authorized CAS identities provision ordinary accounts, never administrators.
+
+The root-only `/opt/ai-gateway/secrets/oidc.json` stores the application credentials
+and verified identity. Registration is reproducible with
+`python3 deploy/configure-sso.py register` on the production host. It uses the
+existing root-owned identity administration token and does not alter other applications.
+
+For initial binding, build `deploy/bind-oidc.go` from `backend` using the existing
+Go module, then run `python3 deploy/configure-sso.py enable /path/to/bind-oidc` as root.
+The binder uses the same modern SQLite driver as the application, takes a private
+consistent database snapshot, and refuses disabled/non-admin targets, conflicting
+identity ownership or replacement of a different existing identity.
+The identity-binding regression tests run in production CI.
+
+Emergency password recovery requires an SSH tunnel to `127.0.0.1:18317` and
+`/login?skipsso=true`; it is not reachable through the public reverse proxy.
+
 ## Operations
 
 ```sh

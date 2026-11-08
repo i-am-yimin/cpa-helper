@@ -32,6 +32,10 @@ services:
       TZ: Asia/Shanghai
       CPA_HELPER_ADDR: ":18317"
       CPA_HELPER_DATA_DIR: /app/data
+    extra_hosts:
+      # Preserve verified HTTPS names while keeping IdP back-channel requests
+      # on the existing local CAS reverse proxy instead of the public CDN.
+      - "cas.nigulas.top:host-gateway"
     volumes:
       - /opt/ai-gateway/helper:/app/data
     cap_drop: [ALL]
