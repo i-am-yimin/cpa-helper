@@ -3,26 +3,33 @@
 ## 分支与上游
 
 本 fork 来自 `HanadaLee/cpa-helper`，后者来自 `walkingddd/CPA-Helper`。
-以下基线取自 2026-11-08 拉取的仓库：
+以下状态更新于 2026-11-08：
 
 | 分支 | 用途与状态 |
 | --- | --- |
-| `main` | 较早的基础版本，最后提交 `0560f9e`（2026-07-29）。 |
-| `cpamc` | 早期 CPAMC 管理中心功能分支，最后提交 `b8d29a4`（2026-08-28）。与 `ext` 分叉，不能当作最新版。 |
-| `ext` | HanadaLee 持续维护的扩展版本，最后提交 `110ee33`（2026-11-03），比本 fork 的 `main` 多 223 个提交；作为本次适配基线。 |
+| `main` | 同步 `walkingddd/CPA-Helper:main`，当前提交 `4723a47`（2026-10-10）。本地 `main` 跟踪 `origin/main`。 |
+| `ext` | HanadaLee 持续维护的扩展版本，最后提交 `110ee33`（2026-11-03）；作为本次适配基线。精简前，它比当时的 `main`（`0560f9e`）多 223 个提交。 |
 | `chore/repository-slimdown` | 基于 `ext` 的仓库、依赖和构建精简。 |
 
-旧分支和提交历史保留，便于比较、回退和同步上游。Git 会在分支间共享对象，
+早期 CPAMC 功能分支 `cpamc` 已按要求从本 fork 删除。
+`main`、`ext` 和精简分支保留，便于比较和维护。Git 会在分支间共享对象，
 这次完整克隆的 Git 对象包约 5.54 MiB，删分支并不会按源码目录大小减少空间。
 
 本地远程配置：`origin` 指向 `https://github.com/i-am-yimin/cpa-helper.git`，
-`upstream` 指向 `https://github.com/HanadaLee/cpa-helper.git`。
+`upstream` 指向 `https://github.com/HanadaLee/cpa-helper.git`，
+`walkingddd` 指向 `https://github.com/walkingddd/CPA-Helper.git`。
+两个上游远程的 push URL 均设为 `DISABLED`，日常推送目标为自己的 `origin`。
 后续在自己的功能分支同步上游：
 
 ```powershell
 git fetch upstream
 git merge upstream/ext
 ```
+
+`main` 用来同步 walkingddd 的基础版本；本 fork 的适配改动在自己的功能分支维护。
+同步 `main` 可使用 `git fetch walkingddd main` 后，在本地 `main` 上执行
+`git merge --ff-only walkingddd/main`，再 `git push origin main`。
+以上推送只修改自己的 fork，GitHub 的 fork 关系不会自动向上游同步代码。
 
 ## 本地开发
 
