@@ -25,3 +25,7 @@
 - 生产 CI 增加独立 SSO 浏览器阶段，使用隔离数据库和本地模拟身份服务，不依赖真实账号密码。
 
 身份服务对 `prompt=login` 的处理依据：[authentik OAuth2 authorize 实现](https://github.com/goauthentik/authentik/blob/main/authentik/providers/oauth2/views/authorize.py)。
+
+## 生产验收（2026-11-09）
+
+代码 `2c691194c198d8491ca4a74c34b1de06695e9803` 的[构建与部署流水线](https://github.com/i-am-yimin/cpa-helper/actions/runs/42540875272)通过，包含新增 SSO 浏览器阶段。公网退出接口返回 `/oidc/login?prompt=login`；携带退出标记再次打开普通 OIDC 入口，授权目标仍为 `cas.nigulas.top`，带 `prompt=login` 和 S256 PKCE。浏览器实际到达 CAS 的默认认证流程，显示“登录以继续访问 AI Gateway”及账号密码表单，没有自动返回网关。未提交真实账号密码。网关就绪接口保持 200。
