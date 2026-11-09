@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import subprocess
 import sys
 import urllib.request
 
@@ -71,6 +72,8 @@ plugins:
 def configure():
     value = json.loads(SECRET.read_text())
     configure_scheduler(value['management_key'], Path(__file__).resolve().parent)
+    subprocess.run([sys.executable, str(Path(__file__).with_name('configure-sso.py')),
+                    'reconcile-logout'], check=True)
     marker = ROOT / 'secrets' / 'configured'
     if marker.exists():
         print('Existing administrator and settings retained.')
@@ -109,6 +112,8 @@ def configure():
 def check():
     value = json.loads(SECRET.read_text())
     check_scheduler(value['management_key'])
+    subprocess.run([sys.executable, str(Path(__file__).with_name('configure-sso.py')),
+                    'check-logout'], check=True)
     req = urllib.request.Request('http://127.0.0.1:8317/v1/models', headers={
         'Authorization': 'Bearer ' + value['probe_api_key']})
     with urllib.request.urlopen(req, timeout=20) as response:

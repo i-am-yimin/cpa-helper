@@ -77,6 +77,13 @@ and verified identity. Registration is reproducible with
 `python3 deploy/configure-sso.py register` on the production host. It uses the
 existing root-owned identity administration token and does not alter other applications.
 
+CPA's provider explicitly uses `default-invalidation-flow` with its user logout
+stage. The provider-only flow inherited from Nginx UI retains the CAS session
+and can silently sign the user back in even with `prompt=login`. Every deployment
+reconciles only CPA's `invalidation_flow` and verifies the user logout stage;
+shared flows and other providers are not edited. `configure-sso.py reconcile-logout`
+and `check-logout` expose the same bounded reconciliation and health check.
+
 For initial binding, build `deploy/bind-oidc.go` from `backend` using the existing
 Go module, then run `python3 deploy/configure-sso.py enable /path/to/bind-oidc` as root.
 The binder uses the same modern SQLite driver as the application, takes a private

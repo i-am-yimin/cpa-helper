@@ -17,6 +17,7 @@ ROOT = Path('/opt/ai-gateway')
 DOCUMENT = ROOT / 'secrets' / 'oidc.json'
 ISSUER = 'https://cas.nigulas.top/application/o/cpa-helper/'
 PUBLIC = 'https://aigateway.nigulas.top'
+LOGOUT_FLOW = 'default-invalidation-flow'
 
 
 def private_json(path, value):
@@ -57,6 +58,55 @@ def matching(path, **filters):
     return result[0] if result else None
 
 
+def session_logout_flow():
+    """Require the CAS flow that destroys the authenticated central session.
+
+    The provider-only invalidation flow revokes application tokens but leaves
+    the CAS session alive. prompt=login alone cannot replace session logout.
+    """
+    flow = matching('flows/instances/', slug=LOGOUT_FLOW)
+    stage = matching('stages/user_logout/', name='default-invalidation-logout')
+    if not flow or flow.get('designation') != 'invalidation' or not stage:
+        raise RuntimeError('CAS session invalidation flow is unavailable')
+    bindings = idp_request('flows/bindings/?' + urlencode({'target': flow['pk']}))['results']
+    if not any(binding['stage'] == stage['pk'] for binding in bindings):
+        raise RuntimeError('CAS invalidation flow does not contain the user logout stage')
+    return flow
+
+
+def configured_provider():
+    config = json.loads(DOCUMENT.read_text())
+    provider = matching('providers/oauth2/', name='CPA-Helper OIDC')
+    app = matching('core/applications/', slug='cpa-helper')
+    if (not provider or not app or app.get('provider') != provider['pk']
+            or config['provider_id'] != provider['pk'] or config['client_id'] != provider['client_id']):
+        raise RuntimeError('Stored CPA provider identity does not match the account center')
+    return provider
+
+
+def reconcile_logout():
+    """Reconcile only this provider; never edit a shared CAS flow."""
+    if not DOCUMENT.exists():
+        print('CAS is not registered; session logout reconciliation skipped.')
+        return
+    provider = configured_provider()
+    flow = session_logout_flow()
+    if provider.get('invalidation_flow') != flow['pk']:
+        idp_request('providers/oauth2/%s/' % provider['pk'],
+                    {'invalidation_flow': flow['pk']}, 'PATCH')
+    check_logout()
+
+
+def check_logout():
+    if not DOCUMENT.exists():
+        return
+    provider = configured_provider()
+    flow = session_logout_flow()
+    if provider.get('invalidation_flow') != flow['pk']:
+        raise RuntimeError('CPA OIDC logout does not invalidate the CAS session')
+    print('CPA OIDC logout uses the verified CAS user logout stage.')
+
+
 def register():
     owner = matching('core/users/', username='nigulas')
     group = matching('core/groups/', name='infra-admin')
@@ -77,8 +127,9 @@ def register():
     elif provider:
         raise RuntimeError('Provider exists without its private deployment document; inspect before adoption')
     fields = {key: reference[key] for key in (
-        'authorization_flow', 'invalidation_flow', 'signing_key', 'property_mappings')}
+        'authorization_flow', 'signing_key', 'property_mappings')}
     fields.update({
+        'invalidation_flow': session_logout_flow()['pk'],
         'name': 'CPA-Helper OIDC', 'client_type': 'confidential',
         'grant_types': ['authorization_code'], 'include_claims_in_id_token': True,
         'sub_mode': 'user_uuid', 'issuer_mode': 'per_provider',
@@ -155,4 +206,5 @@ if __name__ == '__main__':
     if os.geteuid() != 0:
         raise SystemExit('Run as root')
     os.umask(0o077)
-    {'register': register, 'enable': enable}[sys.argv[1]]()
+    {'register': register, 'enable': enable, 'reconcile-logout': reconcile_logout,
+     'check-logout': check_logout}[sys.argv[1]]()

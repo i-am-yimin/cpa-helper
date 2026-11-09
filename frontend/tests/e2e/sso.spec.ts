@@ -13,10 +13,13 @@ async function provider(username: string) {
   const codes = new Map<string, { nonce: string, challenge: string }>()
   const authorizationPrompts: string[] = []
   const pendingLogins = new Map<string, URL>()
+  const sessions = new Set<string>()
+  const invalidatedSessions: string[] = []
   let silentError = ''
   let origin = ''
   const server: Server = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', origin)
+    const session = /(?:^|;\s*)cas_session=([^;]+)/.exec(request.headers.cookie ?? '')?.[1] ?? ''
     const json = (data: unknown) => {
       response.setHeader('Content-Type', 'application/json')
       response.end(JSON.stringify(data))
@@ -36,14 +39,16 @@ async function provider(username: string) {
     if (url.pathname === '/keys') return json({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'test', alg: 'RS256', use: 'sig' }] })
     if (url.pathname === '/authorize') {
       authorizationPrompts.push(url.searchParams.get('prompt') ?? '')
-      if (url.searchParams.get('prompt') === 'none' && silentError) {
+      if (url.searchParams.get('prompt') === 'none' && (silentError || !sessions.has(session))) {
         const callback = new URL(url.searchParams.get('redirect_uri')!)
         callback.searchParams.set('state', url.searchParams.get('state')!)
-        callback.searchParams.set('error', silentError)
+        callback.searchParams.set('error', silentError || 'login_required')
         response.writeHead(302, { Location: callback.toString() }).end()
         return
       }
-      if (url.searchParams.get('prompt') === 'login') {
+      // Reproduce the deployed CAS compatibility case: an existing central
+      // session can authorize even with prompt=login. Logout must destroy it.
+      if (!sessions.has(session)) {
         const ticket = randomUUID()
         pendingLogins.set(ticket, url)
         response.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -57,6 +62,9 @@ async function provider(username: string) {
       const authorization = pendingLogins.get(ticket)
       pendingLogins.delete(ticket)
       if (!authorization) { response.writeHead(400).end(); return }
+      const newSession = randomUUID()
+      sessions.add(newSession)
+      response.setHeader('Set-Cookie', `cas_session=${newSession}; Path=/; HttpOnly; SameSite=Lax`)
       return completeAuthorization(authorization)
     }
     if (url.pathname === '/token') {
@@ -80,6 +88,8 @@ async function provider(username: string) {
         id_token: unsigned + '.' + sign('RSA-SHA256', Buffer.from(unsigned), privateKey).toString('base64url') })
     }
     if (url.pathname === '/logout') {
+      if (sessions.delete(session)) invalidatedSessions.push(session)
+      response.setHeader('Set-Cookie', 'cas_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0')
       const callback = new URL(url.searchParams.get('post_logout_redirect_uri')!)
       callback.searchParams.set('state', url.searchParams.get('state')!)
       response.writeHead(302, { Location: callback.toString() }).end()
@@ -91,7 +101,13 @@ async function provider(username: string) {
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('No provider address')
   origin = 'http://127.0.0.1:' + address.port
-  return { origin, authorizationPrompts, setSilentError: (error: string) => { silentError = error },
+  return { origin, authorizationPrompts, invalidatedSessions,
+    establishSession: async (page: Page) => {
+      const session = randomUUID()
+      sessions.add(session)
+      await page.context().addCookies([{ name: 'cas_session', value: session, url: origin, httpOnly: true, sameSite: 'Lax' }])
+    },
+    setSilentError: (error: string) => { silentError = error },
     close: () => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) }
 }
 
@@ -119,6 +135,7 @@ test('OIDC sign-in, forced redirect, local bypass, profile and logout work in th
     await page.screenshot({ path: 'test-results/oidc-settings.png', fullPage: true })
 
     await page.context().clearCookies()
+    await identityProvider.establishSession(page)
     await page.goto('/login?skipsso=true')
     await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: '使用 OIDC 登录' })).toBeVisible()
@@ -139,6 +156,8 @@ test('OIDC sign-in, forced redirect, local bypass, profile and logout work in th
     await page.getByRole('menuitem', { name: '退出登录', exact: true }).click()
     await expect(page).toHaveURL(url => url.origin === identityProvider.origin && url.pathname === '/authorize' && url.searchParams.get('prompt') === 'login')
     await expect(page.getByRole('heading', { name: 'CAS 登录', exact: true })).toBeVisible()
+    expect(identityProvider.invalidatedSessions).toHaveLength(1)
+    expect((await page.context().cookies(identityProvider.origin)).some(cookie => cookie.name === 'cas_session')).toBe(false)
     expect((await page.request.get('/api/auth/me')).status()).toBe(401)
     await page.reload()
     await expect(page.getByRole('heading', { name: 'CAS 登录', exact: true })).toBeVisible()
@@ -147,7 +166,7 @@ test('OIDC sign-in, forced redirect, local bypass, profile and logout work in th
     await page.goto(baseURL + '/login')
     await expect(page.getByRole('heading', { name: 'CAS 登录', exact: true })).toBeVisible()
     expect(identityProvider.authorizationPrompts.slice(loginAttemptsBeforeLogout)).toEqual(['login', 'login', 'login'])
-    // A still-active provider session cannot authorize until interaction.
+    // The central session was destroyed; a new login needs user interaction.
     await page.getByRole('button', { name: '重新登录 CAS', exact: true }).click()
     await expect(page).toHaveURL(url => url.pathname === '/account/usage')
     expect(identityProvider.authorizationPrompts).toHaveLength(loginAttemptsBeforeLogout + 3)
@@ -171,6 +190,7 @@ test('stale OIDC callbacks recover silently or show a reason before returning to
       oidc_username_claim: 'preferred_username', oidc_auto_create_users: true,
     } })).ok()).toBeTruthy()
     await page.context().clearCookies()
+    await identityProvider.establishSession(page)
     const navigations: { url: string, time: number }[] = []
     page.on('request', request => {
       if (request.isNavigationRequest()) navigations.push({ url: request.url(), time: Date.now() })
