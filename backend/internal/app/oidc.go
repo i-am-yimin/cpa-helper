@@ -16,12 +16,29 @@ import (
 const oidcFlowTTL = 5 * time.Minute
 const oidcSessionTTL = 7 * 24 * time.Hour
 const oidcSilentStatePrefix = "silent."
+const oidcReauthStatePrefix = "reauth."
+const oidcReauthPath = "/oidc/login?prompt=login"
+const oidcReauthCookieName = "cpa_oidc_reauth"
 
 var errOIDCFlowInvalid = authenticationError("OIDC 登录状态无效或已过期，请重新登录")
 
 var oidcHTTPClient = &http.Client{
 	Timeout:       10 * time.Second,
 	CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+}
+
+func oidcRequiresReauthentication(r *http.Request) bool {
+	cookie, err := r.Cookie(oidcReauthCookieName)
+	return err == nil && cookie.Value == "1"
+}
+
+func setOIDCReauthenticationCookie(w http.ResponseWriter, publicURL string, required bool) {
+	value, age := "1", int(oidcSessionTTL.Seconds())
+	if !required {
+		value, age = "", -1
+	}
+	http.SetCookie(w, &http.Cookie{Name: oidcReauthCookieName, Value: value, Path: "/", MaxAge: age,
+		HttpOnly: true, Secure: strings.HasPrefix(publicURL, "https://"), SameSite: http.SameSiteLaxMode})
 }
 
 type oidcRuntime struct {
@@ -92,6 +109,10 @@ func (a *App) newOIDCFlow(ctx context.Context, kind, configHash, returnTo string
 	if kind == "login-silent" {
 		// Keep the retry marker in state so even a browser blocking cookies cannot loop.
 		flow.State = oidcSilentStatePrefix + flow.State
+	} else if kind == "login-reauth" {
+		// A replay of an interactive post-logout flow must never silently
+		// downgrade to session-based authorization.
+		flow.State = oidcReauthStatePrefix + flow.State
 	}
 	if flow.Browser, err = createSecret(); err != nil {
 		return flow, err
@@ -159,7 +180,8 @@ func (a *App) handleOIDC(w http.ResponseWriter, r *http.Request) error {
 		if _, err := a.consumeOIDCFlow(w, r, "logout", cfg.OIDC.PublicURL); err != nil {
 			return err
 		}
-		http.Redirect(w, r, "/login?skipsso=true", http.StatusFound)
+		setOIDCReauthenticationCookie(w, cfg.OIDC.PublicURL, true)
+		http.Redirect(w, r, oidcReauthPath, http.StatusFound)
 		return nil
 	}
 	if !cfg.OIDC.Enabled {
@@ -167,6 +189,9 @@ func (a *App) handleOIDC(w http.ResponseWriter, r *http.Request) error {
 	}
 	switch r.URL.Path {
 	case "/oidc/login":
+		if r.URL.Query().Get("prompt") == "login" {
+			return a.startOIDCLoginWithPrompt(w, r, cfg, r.URL.Query().Get("returnTo"), "login")
+		}
 		return a.startOIDCLogin(w, r, cfg, r.URL.Query().Get("returnTo"), false)
 	case "/oidc/callback":
 		return a.handleOIDCCallback(w, r, cfg)
@@ -176,21 +201,34 @@ func (a *App) handleOIDC(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *App) startOIDCLogin(w http.ResponseWriter, r *http.Request, cfg AppConfig, returnTo string, silent bool) error {
+	prompt := ""
+	if silent {
+		prompt = "none"
+	}
+	return a.startOIDCLoginWithPrompt(w, r, cfg, returnTo, prompt)
+}
+
+func (a *App) startOIDCLoginWithPrompt(w http.ResponseWriter, r *http.Request, cfg AppConfig, returnTo, prompt string) error {
+	if oidcRequiresReauthentication(r) {
+		prompt = "login"
+	}
 	client, err := a.oidcRuntime(r.Context(), cfg.OIDC)
 	if err != nil {
 		return err
 	}
 	kind := "login"
-	if silent {
+	if prompt == "none" {
 		kind = "login-silent"
+	} else if prompt == "login" {
+		kind = "login-reauth"
 	}
 	flow, err := a.newOIDCFlow(r.Context(), kind, client.key, returnTo)
 	if err != nil {
 		return err
 	}
 	options := []oauth2.AuthCodeOption{oidc.Nonce(flow.Nonce), oauth2.S256ChallengeOption(flow.Verifier)}
-	if silent {
-		options = append(options, oauth2.SetAuthURLParam("prompt", "none"))
+	if prompt != "" {
+		options = append(options, oauth2.SetAuthURLParam("prompt", prompt))
 	}
 	setOIDCFlowCookie(w, kind, flow.Browser, cfg.OIDC.PublicURL, false)
 	http.Redirect(w, r, client.oauth.AuthCodeURL(flow.State, options...), http.StatusFound)
@@ -201,6 +239,11 @@ func (a *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request, cfg App
 	kind := "login"
 	if strings.HasPrefix(r.URL.Query().Get("state"), oidcSilentStatePrefix) {
 		kind = "login-silent"
+	} else if strings.HasPrefix(r.URL.Query().Get("state"), oidcReauthStatePrefix) {
+		kind = "login-reauth"
+	}
+	if oidcRequiresReauthentication(r) && kind != "login-reauth" {
+		return authenticationError("你已退出登录，请在统一身份服务中重新登录")
 	}
 	flow, err := a.consumeOIDCFlow(w, r, kind, cfg.OIDC.PublicURL)
 	if errors.Is(err, errOIDCFlowInvalid) {
@@ -218,6 +261,8 @@ func (a *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request, cfg App
 			// Never exchange the stale code: start one fresh state/nonce/PKCE flow instead.
 			return a.startOIDCLogin(w, r, cfg, "/", true)
 		}
+		// Do not start silent recovery for an expired forced-login callback.
+		// The browser error page provides an explicit retry instead.
 	}
 	if err != nil {
 		return err
@@ -296,6 +341,9 @@ func (a *App) handleOIDCCallback(w http.ResponseWriter, r *http.Request, cfg App
 	}
 	if err := security.SetAuthSessionCookie(w, user.ID, cfg.SessionSecret, "oidc", sessionID, strings.HasPrefix(cfg.OIDC.PublicURL, "https://")); err != nil {
 		return err
+	}
+	if oidcRequiresReauthentication(r) {
+		setOIDCReauthenticationCookie(w, cfg.OIDC.PublicURL, false)
 	}
 	http.Redirect(w, r, flow.ReturnTo, http.StatusFound)
 	return nil

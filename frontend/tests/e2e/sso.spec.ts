@@ -12,6 +12,7 @@ async function provider(username: string) {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const codes = new Map<string, { nonce: string, challenge: string }>()
   const authorizationPrompts: string[] = []
+  const pendingLogins = new Map<string, URL>()
   let silentError = ''
   let origin = ''
   const server: Server = createServer(async (request, response) => {
@@ -19,6 +20,14 @@ async function provider(username: string) {
     const json = (data: unknown) => {
       response.setHeader('Content-Type', 'application/json')
       response.end(JSON.stringify(data))
+    }
+    const completeAuthorization = (authorization: URL) => {
+      const code = randomUUID()
+      codes.set(code, { nonce: authorization.searchParams.get('nonce') ?? '', challenge: authorization.searchParams.get('code_challenge') ?? '' })
+      const callback = new URL(authorization.searchParams.get('redirect_uri')!)
+      callback.searchParams.set('code', code)
+      callback.searchParams.set('state', authorization.searchParams.get('state')!)
+      response.writeHead(302, { Location: callback.toString() }).end()
     }
     if (url.pathname === '/.well-known/openid-configuration') {
       return json({ issuer: origin, authorization_endpoint: origin + '/authorize', token_endpoint: origin + '/token',
@@ -34,13 +43,21 @@ async function provider(username: string) {
         response.writeHead(302, { Location: callback.toString() }).end()
         return
       }
-      const code = randomUUID()
-      codes.set(code, { nonce: url.searchParams.get('nonce') ?? '', challenge: url.searchParams.get('code_challenge') ?? '' })
-      const callback = new URL(url.searchParams.get('redirect_uri')!)
-      callback.searchParams.set('code', code)
-      callback.searchParams.set('state', url.searchParams.get('state')!)
-      response.writeHead(302, { Location: callback.toString() }).end()
-      return
+      if (url.searchParams.get('prompt') === 'login') {
+        const ticket = randomUUID()
+        pendingLogins.set(ticket, url)
+        response.setHeader('Content-Type', 'text/html; charset=utf-8')
+        response.end(`<h1>CAS 登录</h1><form action="/confirm-login"><input type="hidden" name="ticket" value="${ticket}"><button>重新登录 CAS</button></form>`)
+        return
+      }
+      return completeAuthorization(url)
+    }
+    if (url.pathname === '/confirm-login') {
+      const ticket = url.searchParams.get('ticket') ?? ''
+      const authorization = pendingLogins.get(ticket)
+      pendingLogins.delete(ticket)
+      if (!authorization) { response.writeHead(400).end(); return }
+      return completeAuthorization(authorization)
     }
     if (url.pathname === '/token') {
       const chunks: Buffer[] = []
@@ -120,16 +137,20 @@ test('OIDC sign-in, forced redirect, local bypass, profile and logout work in th
     // Use the actual sidebar action, including clearing client-side identity.
     await page.locator('.user-menu-button').click()
     await page.getByRole('menuitem', { name: '退出登录', exact: true }).click()
-    await expect(page).toHaveURL(/\/login\?skipsso=true$/)
-    await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
+    await expect(page).toHaveURL(url => url.origin === identityProvider.origin && url.pathname === '/authorize' && url.searchParams.get('prompt') === 'login')
+    await expect(page.getByRole('heading', { name: 'CAS 登录', exact: true })).toBeVisible()
     expect((await page.request.get('/api/auth/me')).status()).toBe(401)
     await page.reload()
-    await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
-    expect(identityProvider.authorizationPrompts).toHaveLength(loginAttemptsBeforeLogout)
-    // Re-entering SSO requires the user's explicit click after logout.
-    await page.getByRole('link', { name: '使用 OIDC 登录' }).click()
+    await expect(page.getByRole('heading', { name: 'CAS 登录', exact: true })).toBeVisible()
+    expect(identityProvider.authorizationPrompts.slice(loginAttemptsBeforeLogout)).toEqual(['login', 'login'])
+    // Returning to the ordinary gateway entry must also respect explicit logout.
+    await page.goto(baseURL + '/login')
+    await expect(page.getByRole('heading', { name: 'CAS 登录', exact: true })).toBeVisible()
+    expect(identityProvider.authorizationPrompts.slice(loginAttemptsBeforeLogout)).toEqual(['login', 'login', 'login'])
+    // A still-active provider session cannot authorize until interaction.
+    await page.getByRole('button', { name: '重新登录 CAS', exact: true }).click()
     await expect(page).toHaveURL(url => url.pathname === '/account/usage')
-    expect(identityProvider.authorizationPrompts).toHaveLength(loginAttemptsBeforeLogout + 1)
+    expect(identityProvider.authorizationPrompts).toHaveLength(loginAttemptsBeforeLogout + 3)
   } finally {
     await admin(page)
     expect((await page.request.put('/api/settings', { data: {

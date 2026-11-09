@@ -138,12 +138,17 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) error {
 	clearSessionCookie(w)
 	w.Header().Set("Cache-Control", "no-store")
 	response := map[string]any{"ok": true, "logout_url": "/login?skipsso=true"}
+	if defaultSSOLogin(cfg) == "oidc" {
+		response["logout_url"] = oidcReauthPath
+		setOIDCReauthenticationCookie(w, cfg.OIDC.PublicURL, true)
+	}
 	cookie, err := r.Cookie(security.SessionCookieName())
 	if err == nil {
 		identity, ok := readSessionToken(cookie.Value, cfg.SessionSecret)
 		if ok {
 			switch identity.AuthMethod {
 			case "oidc":
+				setOIDCReauthenticationCookie(w, cfg.OIDC.PublicURL, true)
 				target, err := a.oidcLogoutURL(w, r, cfg, identity)
 				if err != nil {
 					return err
@@ -162,9 +167,11 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (a *App) oidcLogoutURL(w http.ResponseWriter, r *http.Request, cfg AppConfig, identity *security.Identity) (string, error) {
-	const localOnly = "/login?skipsso=true&sso_logout=local"
+	// If provider logout is unavailable, still require interactive login at
+	// the identity service; never fall back to automatic SSO or the local form.
+	const interactiveLogin = oidcReauthPath
 	if identity.UserID == nil {
-		return localOnly, nil
+		return interactiveLogin, nil
 	}
 	var encrypted []byte
 	var clientID, publicURL, endpoint string
@@ -172,26 +179,26 @@ func (a *App) oidcLogoutURL(w http.ResponseWriter, r *http.Request, cfg AppConfi
 		RETURNING client_id, public_url, logout_url, id_token`, identity.SessionID, *identity.UserID).
 		Scan(&clientID, &publicURL, &endpoint, &encrypted)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "/login?skipsso=true", nil
+		return oidcReauthPath, nil
 	}
 	if err != nil {
 		return "", err
 	}
 	if endpoint == "" {
-		return localOnly, nil
+		return interactiveLogin, nil
 	}
 	token, err := unsealOIDCToken(encrypted, cfg.SessionSecret)
 	if err != nil {
-		return localOnly, nil
+		return interactiveLogin, nil
 	}
-	flow, err := a.newOIDCFlow(r.Context(), "logout", "", "/login?skipsso=true")
+	flow, err := a.newOIDCFlow(r.Context(), "logout", "", oidcReauthPath)
 	if err != nil {
 		return "", err
 	}
 	setOIDCFlowCookie(w, "logout", flow.Browser, publicURL, false)
 	target, err := url.Parse(endpoint)
 	if err != nil {
-		return localOnly, nil
+		return interactiveLogin, nil
 	}
 	query := target.Query()
 	query.Set("client_id", clientID)

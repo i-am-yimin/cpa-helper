@@ -57,9 +57,14 @@ later deployments preserve the current administrator and settings.
 
 Normal browser sign-in uses the existing `cas.nigulas.top` authentik service
 through native OIDC authorization-code + PKCE. Normal `/login` requests enter
-OIDC; `/login?skipsso=true` renders the login page after explicit logout without
-starting another authorization flow. The public password-login API stays
-blocked. Model API requests continue using API keys.
+OIDC. Explicit logout revokes the gateway session, calls the identity provider's
+end-session endpoint when available, then returns to CAS authorization with
+`prompt=login`. Users remain at CAS until they interactively sign in again.
+A secure, HTTP-only reauthentication marker also prevents returning to the
+ordinary gateway entry from silently reusing an old provider session. It clears
+only after successful interactive OIDC sign-in. The explicit recovery URL
+`/login?skipsso=true` remains available; logout no longer lands on that local form.
+The public password-login API stays blocked. Model API requests continue using API keys.
 
 The `CPA-Helper OIDC` provider has strict authorization/logout callbacks and its
 `AI Gateway` application is restricted to `infra-admin`. The explicitly selected

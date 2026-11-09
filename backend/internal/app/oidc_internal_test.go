@@ -251,7 +251,7 @@ func TestOIDCSharedCASIdentityAndLogout(t *testing.T) {
 		t.Fatalf("logged-out session still valid: %d", rec.Code)
 	}
 	end := oidcTestRequest(t, a, "GET", "/oidc/logged-out?state="+url.QueryEscape(logoutURL.Query().Get("state")), nil, logout.Result().Cookies())
-	if end.Code != 302 || end.Header().Get("Location") != "/login?skipsso=true" {
+	if end.Code != 302 || end.Header().Get("Location") != oidcReauthPath {
 		t.Fatalf("logout callback: %d %s", end.Code, end.Body.String())
 	}
 }
@@ -411,7 +411,85 @@ func TestOIDCLocalLogoutAndDisabledRoutes(t *testing.T) {
 		t.Fatal(callback.Body.String())
 	}
 	logout := oidcTestRequest(t, a, "POST", "/api/auth/logout", nil, callback.Result().Cookies())
-	if !strings.Contains(logout.Body.String(), "sso_logout=local") {
-		t.Fatalf("missing local-only notice: %s", logout.Body.String())
+	if !strings.Contains(logout.Body.String(), oidcReauthPath) {
+		t.Fatalf("missing interactive identity-provider login: %s", logout.Body.String())
+	}
+}
+
+func TestOIDCPostLogoutReauthenticationCannotUseSilentRecovery(t *testing.T) {
+	a := newQuotaTestApp(t)
+	p := newOIDCTestProvider(t)
+	oidcTestConfig(t, a, p)
+	start := oidcTestRequest(t, a, "GET", oidcReauthPath, nil, nil)
+	target, err := url.Parse(start.Header().Get("Location"))
+	if err != nil || start.Code != 302 || target.Scheme+"://"+target.Host != p.server.URL || target.Query().Get("prompt") != "login" || !strings.HasPrefix(target.Query().Get("state"), oidcReauthStatePrefix) {
+		t.Fatalf("post-logout authorization is not interactive: %d %s", start.Code, start.Header().Get("Location"))
+	}
+	if target.Query().Get("nonce") == "" || target.Query().Get("code_challenge_method") != "S256" {
+		t.Fatal("reauthentication lost nonce/PKCE")
+	}
+	p.mu.Lock()
+	p.nonce, p.challenge = target.Query().Get("nonce"), target.Query().Get("code_challenge")
+	p.mu.Unlock()
+	callback := oidcTestCallback(t, a, target, start.Result().Cookies())
+	if callback.Code != 302 {
+		t.Fatalf("interactive callback failed: %d %s", callback.Code, callback.Body.String())
+	}
+	// A reused forced-login callback with no app session cannot cause a new
+	// prompt=none flow, even if the IdP still has a browser session.
+	replay := oidcTestCallback(t, a, target, start.Result().Cookies())
+	if replay.Code != http.StatusUnauthorized || replay.Header().Get("Location") != "" {
+		t.Fatalf("forced login replay became silent: %d %s", replay.Code, replay.Header().Get("Location"))
+	}
+}
+
+func TestOIDCDefaultLogoutWithoutSessionStillReauthenticatesAtProvider(t *testing.T) {
+	a := newQuotaTestApp(t)
+	p := newOIDCTestProvider(t)
+	cfg := oidcTestConfig(t, a, p)
+	cfg.SSODefaultLogin = "oidc"
+	if err := a.saveConfig(context.Background(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	response := oidcTestRequest(t, a, "POST", "/api/auth/logout", nil, nil)
+	var body map[string]any
+	_ = json.Unmarshal(response.Body.Bytes(), &body)
+	if response.Code != 200 || body["logout_url"] != oidcReauthPath {
+		t.Fatalf("forced SSO fell back to local login: %d %s", response.Code, response.Body.String())
+	}
+	var marker *http.Cookie
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == oidcReauthCookieName {
+			marker = cookie
+		}
+	}
+	if marker == nil || marker.Value != "1" || !marker.HttpOnly || !marker.Secure || marker.Path != "/" {
+		t.Fatal("logout did not preserve secure reauthentication requirement")
+	}
+	start := oidcTestRequest(t, a, "GET", "/oidc/login", nil, []*http.Cookie{marker})
+	target, err := url.Parse(start.Header().Get("Location"))
+	if err != nil || start.Code != 302 || target.Query().Get("prompt") != "login" {
+		t.Fatalf("ordinary entry bypassed prior logout: %d %s", start.Code, start.Header().Get("Location"))
+	}
+	stale := oidcTestRequest(t, a, "GET", "/oidc/callback?state=stale&code=unused", nil, []*http.Cookie{marker})
+	if stale.Code != http.StatusUnauthorized || stale.Header().Get("Location") != "" {
+		t.Fatal("stale callback silently signed in after logout")
+	}
+	p.mu.Lock()
+	p.nonce, p.challenge = target.Query().Get("nonce"), target.Query().Get("code_challenge")
+	p.mu.Unlock()
+	callbackCookies := append(start.Result().Cookies(), marker)
+	callback := oidcTestCallback(t, a, target, callbackCookies)
+	if callback.Code != 302 {
+		t.Fatalf("interactive login failed: %d %s", callback.Code, callback.Body.String())
+	}
+	cleared := false
+	for _, cookie := range callback.Result().Cookies() {
+		if cookie.Name == oidcReauthCookieName && cookie.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatal("successful interactive login did not clear reauthentication marker")
 	}
 }
