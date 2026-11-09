@@ -1,281 +1,195 @@
 ---
-name: CPA-Helper — BoardUI
-description: A readable BoardUI workspace for upstream connections, quota and routing priorities.
+name: CPA-Helper — Apple-inspired workspace
+description: A frosted glass gateway workspace with directional light and responsive interaction.
 colors:
-  primary: oklch(54.6% 0.245 262.881)
-  primary-deep: oklch(48.8% 0.243 264.376)
-  primary-pressed: oklch(42.4% 0.199 265.638)
-  primary-foreground: "#fff"
-  ring: oklch(62.3% 0.214 259.815)
-  background: "#f7f7f7"
-  card: "#fff"
-  foreground: oklch(14.5% 0 none)
-  muted-foreground: oklch(43.9% 0 none)
-  border: "#ebebeb"
-  input: oklch(87% 0 none)
-  accent: oklch(97% 0.014 254.604)
-  accent-foreground: oklch(48.8% 0.243 264.376)
-  destructive: color-mix(in srgb, oklch(50.5% 0.213 27.518) 80%, oklch(43.9% 0 none))
-  success: oklch(52.7% 0.154 150.069)
-  warning: oklch(47.3% 0.137 46.201)
-  background-dark: oklch(20.5% 0 none)
-  card-dark: oklch(26.9% 0 none)
-  foreground-dark: oklch(98.5% 0 none)
-  muted-foreground-dark: oklch(70.8% 0 none)
-  border-dark: oklch(37.1% 0 none)
-  input-dark: oklch(55.6% 0 none)
-  primary-dark: "#3392ff"
-  accent-dark: color-mix(in srgb, oklch(62.3% 0.214 259.815) 15%, oklch(26.9% 0 none))
-  accent-foreground-dark: oklch(80.9% 0.105 251.813)
-  destructive-dark: color-mix(in srgb, oklch(63.7% 0.237 25.331) 80%, oklch(55.6% 0 none))
-  success-dark: oklch(79.2% 0.209 151.711)
-  warning-dark: oklch(82.8% 0.189 84.429)
-  chart-teal: oklch(70.4% 0.14 182.503)
-  chart-lime: oklch(64.8% 0.2 131.684)
-  chart-pink: oklch(65.6% 0.241 354.308)
-  chart-sky: oklch(68.5% 0.169 237.323)
-  chart-purple: oklch(62.7% 0.265 303.9)
+  primary: "#0066df"
+  primary-hover: "#0058c5"
+  primary-foreground: "#ffffff"
+  background: "#dce5f2"
+  card: "#ffffff"
+  foreground: "#1d2433"
+  muted: "#eef1f5"
+  muted-foreground: "#626c7d"
+  border: "#e5e9f0"
+  input: "#d3d9e3"
+  accent: "#e5efff"
+  accent-foreground: "#0058c5"
+  destructive: "#cf3448"
+  success: "#21815b"
+  warning: "#96610e"
+  background-dark: "#080c14"
+  card-dark: "#1b1e25"
+  foreground-dark: "#f5f7fb"
+  muted-foreground-dark: "#a2adbd"
+  border-dark: "#303640"
+  input-dark: "#434c5a"
+  primary-dark: "#409cff"
+  accent-dark: "#203853"
+  accent-foreground-dark: "#81bdff"
+  destructive-dark: "#ff7a87"
+  success-dark: "#66c69d"
+  warning-dark: "#f2bc67"
+  chart-1: "#0066df"
+  chart-2: "#3695c5"
+  chart-3: "#91b6d1"
+  chart-4: "#5a79a8"
+  chart-5: "#b2bfce"
 typography:
   headline:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
-    fontSize: 28px
+    fontFamily: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Variable", "PingFang SC", "Microsoft YaHei", sans-serif
+    fontSize: 30px
     fontWeight: 700
-    lineHeight: 1.18
-    letterSpacing: -0.03em
+    lineHeight: 1.22
+    letterSpacing: -0.035em
   headline-mobile:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
-    fontSize: 22px
+    fontSize: 24px
     fontWeight: 700
-    lineHeight: 1.16
-    letterSpacing: -0.03em
+    lineHeight: 1.22
   title:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
     fontSize: 18px
-    fontWeight: 600
-    lineHeight: 1.375
-    letterSpacing: -0.02em
-  canvas-body:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
-    fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.45
+    fontWeight: 650
+    letterSpacing: -0.025em
   body:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
     fontSize: 14px
     fontWeight: 400
-    lineHeight: 20px
+    lineHeight: 1.55
   control:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
     fontSize: 14px
-    fontWeight: 500
-    lineHeight: 20px
-    letterSpacing: "0"
+    fontWeight: 550
   label:
-    fontFamily: '"Inter Variable", "Microsoft YaHei", "PingFang SC", sans-serif'
     fontSize: 12px
-    fontWeight: 500
-    lineHeight: 16px
+    fontWeight: 550
   mono:
     fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace'
 rounded:
-  xs: 4px
-  sm: 8px
-  control: 10px
-  floating: 12px
+  badge: 7px
+  small-control: 9px
+  control: 12px
+  floating: 16px
+  card-mobile: 20px
   card: 24px
-  pill: 999px
+  dialog: 26px
+  auth: 30px
 spacing:
   xs: 4px
   sm: 8px
-  control-inline: 10px
   md: 12px
   lg: 16px
-  panel: 20px
+  panel-mobile: 18px
   xl: 24px
   canvas-inline: 32px
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
     typography: "{typography.control}"
     rounded: "{rounded.control}"
-    padding: 0 10px
-    height: 36px
+    padding: 0 16px
+    height: 40px
   button-outline:
-    backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
     typography: "{typography.control}"
     rounded: "{rounded.control}"
-    padding: 0 10px
-    height: 36px
-  button-ghost:
-    backgroundColor: transparent
-    textColor: "{colors.foreground}"
-    typography: "{typography.control}"
-    rounded: "{rounded.control}"
-    padding: 0 10px
-    height: 36px
+    padding: 0 16px
+    height: 40px
   input:
-    backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.control}"
-    padding: 4px 10px
-    height: 36px
-  navigation-active:
-    backgroundColor: "{colors.background}"
-    textColor: "{colors.foreground}"
-    typography: "{typography.control}"
-    rounded: "{rounded.control}"
-    padding: 8px
-    height: 32px
-  badge-outline:
-    backgroundColor: transparent
-    textColor: "{colors.foreground}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: 2px 8px
-    height: 20px
+    padding: 0 12px
+    height: 40px
   card:
-    backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.card}"
-    padding: 20px
+    padding: 24px
   tab-active:
-    backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
-    typography: "{typography.control}"
-    rounded: "{rounded.sm}"
-    padding: 8px 12px
-  quota-pause:
-    backgroundColor: "color-mix(in oklch, oklch(47.3% 0.137 46.201) 14%, #f7f7f7)"
-    textColor: "{colors.warning}"
-    rounded: "{rounded.floating}"
-    padding: 12px 16px
+    rounded: "{rounded.small-control}"
+  badge:
+    textColor: "{colors.foreground}"
+    typography: "{typography.label}"
+    rounded: "{rounded.badge}"
 ---
 
 # Design System: CPA-Helper
 
 ## Overview
 
-**Creative North Star: "BoardUI — a readable routing workspace"**
+**Creative North Star: "Light through glass"**
 
-BoardUI is the confirmed visual authority: neutral work surfaces, Inter, blue interactions, regular rounded geometry and restrained contact shadows. The system keeps dense administrative information readable while leaving the routing controls within reach.
+The full-site Apple-inspired workspace uses a continuous silver-blue or midnight-blue light field behind frosted navigation, panels, controls and floating UI. Upper-left daylight, a lower-right cool reflection and a restrained warm reflection establish one physical lighting scene. Background color must remain visibly transmitted through the material.
 
-The MIT-licensed BoardUI theme is adapted to the existing Vue 3, Reka UI and Tailwind 4 application. Reuse the shared primitives and application aliases so the light and dark themes remain coherent.
-
-This records the implemented system after the approved replacement of the earlier design. Source authority: [BoardUI](https://github.com/BoardUI/boardui), pinned to commit `ec5c5eb3e29c2441be63b9422cd54f411ef23466`. The vendored MIT notice is in `frontend/src/styles/boardui/LICENSE` and `frontend/public/licenses/boardui.txt`. `frontend/src/styles/boardui/theme.css` supplies the upstream theme; `typography.css` supplies the upstream type utilities; `frontend/src/styles/boardui.css` supplies the final Vue application aliases and component adaptations. This was an explicit library choice, with no generated visual comp or directional seed.
+This replaces the former flat white-card presentation. `frontend/src/styles/tokens.css` owns semantic colors and optical recipes; `frontend/src/styles/apple.css` owns shared components. Vue 3 and Reka UI preserve product behavior and keyboard interaction. Historical BoardUI sources and MIT notices remain as provenance assets at `frontend/src/styles/boardui/LICENSE` and `frontend/public/licenses/boardui.txt`.
 
 **Key Characteristics:**
 
-- Neutral canvas with distinct, opaque working surfaces.
-- Inter text with a compact operational type hierarchy.
-- Blue interactive states, regular corners and shallow contact shadows.
-- Responsive controls and explicit, readable data states.
+- Directional ambient light with clear light and dark material hierarchies.
+- Frosted panels with bright inner rims, quiet outer edges and contact shadows.
+- Blue actions and data, continuous selection motion and tactile feedback.
+- Dense, readable information and usable mobile controls.
 
 ## Colors
 
-The palette is neutral white and charcoal with a blue interaction accent. Status and chart colors carry data meaning. Frontmatter values resolve the final semantic aliases to the imported Tailwind 4 primitives, retaining BoardUI's explicit neutral and blue overrides.
+Blue identifies actions, focus and selection. The light canvas combines silver, pale blue and cyan with a restrained warm reflection; the dark canvas uses midnight blue and low-luminance blue-teal reflected light. These broad fields provide something for glass to transmit without drawing attention away from data.
 
-### Primary
+Success green, warning amber and destructive red communicate real state alongside wording. Related chart blues and semantic error red remain distinct. The original brand mark is preserved. Primary button gradients stay dark enough for white labels.
 
-- **Interaction blue:** primary actions, links and focus treatment. The solid primary token is the first stop of the primary button; its gradient continues to primary-deep. Hover holds the primary tone and active progresses from primary-deep to primary-pressed. The darker stops are a deliberate application adaptation for white-label contrast.
-- **Soft blue selection:** accent surfaces and their paired text; dark mode mixes the blue interaction tone into the card surface.
-
-### Neutral
-
-- **Working canvas:** the background and muted surfaces; **raised surface:** cards, popovers and the sidebar.
-- **Primary ink:** foreground text; **supporting ink:** muted text. Borders and input edges use distinct neutral steps.
-- Dark mode uses charcoal canvas, a lighter charcoal card, near-white ink and the paired dark muted/border/input tokens. It is a semantic theme, not a filter applied to light colors.
-
-### Semantic data colors
-
-- **Success green** and **warning amber** communicate actual states alongside words. Destructive text uses BoardUI's red/neutral mix.
-- The five chart accents are teal, lime, pink, sky and purple; their aliases remain separate from the interaction accent.
-
-**The Semantic Alias Rule.** Use the application aliases for surfaces and text; boardui.css is the final application mapping over the imported BoardUI theme.
-
-**The Contrast Rule.** Keep the implemented darker primary gradients with white labels, neutral-600 muted text in light mode, neutral-400 in dark mode, and amber-800 / amber-400 warning text.
+**The Semantic Theme Rule.** Use semantic variables and existing `--cpa-*` aliases. Opaque `--card` remains a fallback for sticky headers and occluding inner elements; shared outer panels use the separate glass material. Full gradients, backdrop filters and shadows are recorded in the sidecar because they exceed the frontmatter component schema.
 
 ## Typography
 
-**Display and body font:** locally bundled Inter Variable, from `@fontsource-variable/inter` (installed version 5.3.0), with Microsoft YaHei and PingFang SC for Chinese, then sans-serif.
+Use the system font stack throughout. Apple platforms can use installed system fonts; local Inter Variable and Chinese system fonts supply cross-platform fallbacks. No SF font files are bundled or downloaded.
 
-**Label font:** the same Inter stack. **Code font:** Cascadia Mono / SFMono-Regular / Consolas / monospace. The upstream theme's Next.js loading comments describe its original environment; CPA-Helper loads Inter through its local CSS package.
-
-### Hierarchy
-
-- **Headline:** page titles use the headline role, reducing to headline-mobile at the small-page breakpoint.
-- **Title:** card titles use a restrained semibold heading with tighter tracking.
-- **Canvas body:** global body text; **body:** compact table and component copy; **control:** medium-weight button and tab labels; **label:** compact metadata and badges.
-- Imported BoardUI utilities include a broader type ramp; the reused small-button control uses its body-medium utility. Do not promote the auth wordmark's oversized type into a general heading role.
-- Quota and table values use tabular numbers; identifiers can use the existing code stack.
-
-**The One Family Rule.** Use the local Inter stack for headings, body and controls; reserve the existing monospace stack for code and machine-readable values.
+Page headings use the headline role; compact page headings use headline-mobile. Cards use semibold titles; charts and compact sections use 15–16px headings. Operational copy uses body/control roles. Supporting metadata, axes and badges use 11–12px; primary data stays larger. Tables, percentages and changing values use tabular numerals. Reserve monospace for code and identifiers.
 
 ## Layout
 
-The shell fills the viewport with a fixed-height header (56px) and an independently scrolling content area. Desktop navigation supports an expanded rail (16rem) and icon rail (3rem); the mobile sheet is (18rem). Content insets are (28px 32px 36px), and the page fills available width up to (1920px). The shared page gap is (20px), reducing to (12px) at viewport widths up to (720px); page titles also reduce at this breakpoint. At shell widths up to (768px), content insets become (14px 16px 18px).
+The shell fills the viewport with a 64px overlapping glass header, a 246px desktop sidebar and independently scrolling content. Content uses a 64px header allowance plus 28px 32px 36px insets and a 1920px maximum. At widths up to 768px it uses a 64px header allowance plus 20px 16px 24px insets and sheet navigation. Page gaps reduce from 24px to 18px.
 
-The upstream hub owns an inline-size container. At available content widths up to (959px), the desktop table becomes labelled stacked rows, group policies become a single column, actions wrap and filters remain usable. Its desktop table minimum is (940px); the narrow layout removes that minimum. Use this content-based threshold rather than assuming a tablet viewport leaves enough space beside the sidebar.
+The upstream hub responds to available content width. Below 960px its table becomes structured cards. From 600px to 959px identity and switch occupy the first row, followed by provider, quota and priority columns. Below 600px those details stack. Expanded content, policy controls and actions remain reachable without page-wide horizontal scrolling.
 
-Default cards use the panel spacing with a compact variant (16px vertical padding). The default button and input height is (36px); small buttons are (32px), extra-small buttons (24px). Icon-only sizes remain those exposed by the shared button API.
+The usage dashboard groups six values in one statistics strip: six desktop columns, three below 980px and two on mobile. Charts and supporting panels reflow below it. Long tables may retain their own horizontal scroll area.
 
-The authentication shell uses a neutral brand panel beside an opaque form surface. At viewport widths up to (900px), it hides the brand panel and presents the form in one column.
+Authentication uses one centered form with a separate brand mark. Mobile places the form near the top with safe-area spacing. Keep the screen scrollable on short viewports.
 
 ## Elevation & Depth
 
-Depth combines tonal surfaces, fine borders and shallow contact shadows. Cards use the BoardUI card contact shadow; floating menus use its two-layer dropdown shadow; fields use its inset shadow. Dark mode preserves the geometry and raises shadow alpha. Exact shadow recipes are in the sidecar.
+The fixed viewport background supplies the lighting scene. The app shell, main area and scrolling canvas remain transparent so they do not interrupt transmission. The translucent 64px header overlaps scrolling content, revealing its blur as content moves underneath.
 
-**The Contact Depth Rule.** Use the shared contact and dropdown shadows to separate surfaces; headers stay opaque and the application header has no backdrop blur.
+Four optical roles define depth: navigation chrome, frosted panels, thin controls and floating dialogs or menus. Each uses a directional translucent gradient, an illuminated inner top edge, a subtle outer edge and appropriate ambient/contact shadows. Light and dark modes have separately tuned opacity and reflection. Login adds static diagonal light bands behind its frosted pane.
 
-Motion supports state changes: button adaptation uses (160ms) transitions, the primary gradient's hover overlay fades over (150ms), and route transitions use (180ms) opacity plus a small vertical displacement (6px). The global reduced-motion rule shortens animations and transitions and uses automatic scrolling. Forced-color mode provides system-color borders and removes card/button shadows.
+**The Transmission Rule.** Preserve a continuous path from the viewport light field to outer glass surfaces. Apply backdrop blur to outer planes and floating UI; nested controls and rows inherit their parent material and use thin translucent fills without repeated blur. Keep occluding elements solid where content needs masking. Avoid extra blur on text, animated wallpapers and decorative spheres.
+
+Motion explains state: sidebar selection slides between destinations, Reka measures the tab indicator, buttons press to 0.98, switches slide, dialogs scale/fade, routes move a few pixels and quota/ranking bars transition. No additional reduced-motion adaptation was requested.
 
 ## Shapes
 
-Use regular rounded rectangles. Cards, ordinary panels, dialogs and sheets share the large card radius; dropdowns, popovers and select panels use the floating radius. Default buttons and input surfaces use the control radius; small buttons use the small radius; extra-small buttons use the extra-small radius. Badges are pills. Tabs have a softly rounded track with inset, rounded active segments.
-
-These are source-backed role choices. The logo stays inside its framed mark; large authentication lettering is local brand treatment.
+Use regular rounded rectangles with role-specific corners from the frontmatter. Mobile cards use the smaller card radius. Tabs have an inset translucent track and a raised glass selection surface. Switches and progress tracks remain fully rounded. Preserve the original logo inside its frame.
 
 ## Components
 
-### Buttons
+### Buttons and fields
 
-Compact, clear controls with a subtle physical edge. Primary buttons use the blue gradient and white text, with the disabled gradient and disabled label token supplied by BoardUI. Outline and secondary variants use the raised surface, neutral border and a subtle neutral hover. Ghost buttons reveal a muted hover surface; links use the interaction color and an underline on hover. Destructive actions use a tinted destructive surface.
+Primary buttons use an optical blue gradient, white labels, a fine upper highlight and brief press feedback. Outline controls and fields use thin glass; ghost controls reveal a hover surface, and destructive actions use semantic tint. Preserve shared APIs, disabled handling, visible focus and error feedback.
 
-Reuse the shared variant and size API. Preserve the (3px) focus-visible ring, invalid-state feedback, disabled interaction handling and (50%) disabled opacity. Ordinary pressable buttons translate downward (1px); popup triggers retain their popup semantics. Icon-only actions require accessible names.
+Fields, input groups and select triggers share a 40px minimum height and 12px corners. Mobile inputs use at least 44px and 16px text. Native upstream filters retain keyboard semantics with thin custom chevrons. Icon actions require accessible names.
 
-### Inputs / Fields
+### Navigation and tabs
 
-Opaque card surface, input-colored stroke, inset shadow and a compact minimum height. Desktop text is compact; narrow screens retain the larger input text from the shared primitive. Keep visible labels, focus rings and error wording. Select triggers, textareas and input groups share the field treatment.
+The sidebar has a moving blue selection beneath the active item, with compact icon and mobile sheet modes. Tabs preserve Reka keyboard behavior and its measured indicator so variable-width and translated labels stay aligned. Long tab strips scroll within their container.
 
-### Cards / Containers
+### Cards, charts and data states
 
-Neutral work surfaces with a fine border and contact shadow. Standard cards use panel padding, with the existing small-card variant for denser content. Do not add repeated decorative containers around each value; expanded hub detail and quota rows already use ordinary separators.
+Reuse the card primitive. The usage statistics strip uses a semantic description list. Chart legends retain labels, values and percentages. Ranking names can wrap accompanying metrics onto another line. Unknown, loading, empty, stale, failed and pending versus confirmed states keep explicit wording.
 
-### Navigation / Tabs
+### Quota policy controls
 
-The sidebar is an opaque raised surface. Active entries use a muted neutral fill and semibold ink; icon collapse keeps its tooltip behavior. Tabs sit inside a muted, bordered track; the active segment uses the card surface, foreground ink and contact shadow. Preserve Reka keyboard navigation and focus behavior. Narrow hub tabs scroll within their strip.
-
-### Badges / Data States
-
-Compact pill labels use outline, neutral, interaction or destructive treatments according to state. Use readable state wording with each color. Keep loading, empty, filtered-empty, unknown, stale, failure, retry and pending-versus-confirmed synchronization states explicit.
-
-### Quota Policy Editor
-
-The editor combines labelled window toggles, compact numeric fields, mode selection and explicit draft/save actions. Paused state uses the floating radius, a weak amber surface and warning text; its message includes the reason and synchronization state. Inherit/custom/off modes and manual-resume behavior are product rules in PRODUCT.md, not visual defaults. On narrow screens its heading, mode selector and save footer stack.
+Keep quota bars and priority controls separate in responsive layouts. Editors retain labelled toggles, mode selection, draft/save actions and synchronization wording. Routing rules, inheritance and manual resume remain defined in PRODUCT.md.
 
 ## Do's and Don'ts
 
-### Do:
-
-- **Do** reuse BoardUI semantic aliases, the local Inter stack and the shared Vue/Reka primitives.
-- **Do** keep default controls compact and preserve their focus, invalid, disabled and reduced-motion states.
-- **Do** let available content width determine the upstream row layout and keep every routing control reachable.
-- **Do** pair status color with explicit text and distinguish unknown, stale, loading, failed and confirmed states.
-
-### Don't:
-
-- **Don't** reintroduce the discarded paper-and-ink palette, irregular outlines or replacement font family.
-- **Don't** lighten the primary button gradient or muted and warning text beyond the implemented contrast adjustments.
-- **Don't** substitute decorative panels for labels, values or actionable state explanations.
-- **Don't** treat fixture screenshots or preview snippets as evidence of live accounts, routing or quota results.
+- **Do** reuse semantic themes and shared Vue/Reka primitives.
+- **Do** preserve visible background transmission and distinguish the four material roles.
+- **Do** let available content width determine upstream layout.
+- **Do** pair status color with explicit state wording.
+- **Don't** add competing theme mappings, nested blur or unrelated glowing blobs.
+- **Don't** use color or animation to imply routing state that the API has not confirmed.
+- **Don't** treat fixture screenshots or component previews as live account evidence.

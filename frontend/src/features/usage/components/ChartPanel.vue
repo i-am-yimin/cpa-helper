@@ -73,7 +73,6 @@ const { t } = useI18n()
   box-sizing: border-box;
   min-height: 56px;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--cpa-border);
 }
 
 .chart-actions {
@@ -81,11 +80,13 @@ const { t } = useI18n()
 }
 
 h2 {
+  flex: 0 0 auto;
   margin: 0;
   color: var(--cpa-text-strong);
   font-size: 15px;
-  font-weight: 760;
+  font-weight: 650;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .chart-body,

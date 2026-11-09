@@ -98,7 +98,7 @@ async function handleSubmit() {
   <AuthShell :section-label="t('登录区域', 'Sign-in area')">
     <Card class="w-full max-w-[420px]">
       <CardHeader class="text-center">
-        <CardTitle>{{ headingTitle }}</CardTitle>
+        <CardTitle as="h1">{{ headingTitle }}</CardTitle>
         <CardDescription>{{ headingSubtitle }}</CardDescription>
       </CardHeader>
 

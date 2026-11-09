@@ -60,7 +60,7 @@ async function handleSubmit() {
   <AuthShell :section-label="t('修改密码区域', 'Change password area')">
     <Card class="w-full max-w-[420px]">
       <CardHeader class="text-center">
-        <CardTitle>{{ t('修改密码', 'Change password') }}</CardTitle>
+        <CardTitle as="h1">{{ t('修改密码', 'Change password') }}</CardTitle>
         <CardDescription>{{ t('首次登录后需要完成密码更新', 'Update your password after first sign-in') }}</CardDescription>
       </CardHeader>
 

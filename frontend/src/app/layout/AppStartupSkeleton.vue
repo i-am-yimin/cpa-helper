@@ -126,8 +126,8 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
 
 .startup-visual {
   display: grid;
-  grid-template-columns: 16rem minmax(0, 1fr);
-  background: var(--cpa-shell-bg);
+  grid-template-columns: 246px minmax(0, 1fr);
+  background: transparent;
 }
 
 .startup-sidebar {
@@ -135,7 +135,8 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
   min-height: 0;
   flex-direction: column;
   border-right: 1px solid var(--sidebar-border);
-  background: var(--sidebar);
+  background: var(--cpa-nav-glass);
+  backdrop-filter: var(--cpa-glass-chrome-filter);
 }
 
 .startup-brand,
@@ -186,18 +187,19 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  background: var(--cpa-canvas);
+  background: transparent;
 }
 
 .startup-header {
   display: flex;
-  height: 56px;
-  flex: 0 0 56px;
+  height: 64px;
+  flex: 0 0 64px;
   gap: 12px;
   align-items: center;
   padding: 0 20px;
   border-bottom: 1px solid var(--cpa-border);
-  background: color-mix(in srgb, var(--cpa-canvas) 94%, transparent);
+  background: var(--cpa-header-glass);
+  backdrop-filter: var(--cpa-glass-chrome-filter);
 }
 
 .startup-header-divider {
@@ -219,7 +221,7 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
   flex: 1 1 auto;
   overflow: hidden;
   padding: 28px 32px 36px;
-  background: var(--cpa-canvas);
+  background: transparent;
 }
 
 .startup-page {
@@ -242,10 +244,11 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
 .startup-filter-panel,
 .startup-panel,
 .startup-metric-card {
-  border: 1px solid var(--cpa-border);
+  border: 1px solid var(--cpa-glass-border);
   border-radius: var(--cpa-radius);
-  background: var(--cpa-surface);
-  box-shadow: var(--cpa-shadow-card);
+  background: var(--cpa-glass-panel);
+  backdrop-filter: var(--cpa-glass-panel-filter);
+  box-shadow: var(--cpa-glass-panel-shadow);
 }
 
 .startup-filter-panel {
@@ -331,8 +334,8 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
   }
 
   .startup-header {
-    height: 58px;
-    flex-basis: 58px;
+    height: 64px;
+    flex-basis: 64px;
     padding-inline: 10px;
   }
 
@@ -342,7 +345,7 @@ const navigationWidths = ['68%', '76%', '61%', '72%', '64%', '78%', '58%', '70%'
   }
 
   .startup-content {
-    padding: 16px 12px 24px;
+    padding: 20px 16px 24px;
   }
 
   .startup-filter-controls {

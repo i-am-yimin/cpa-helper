@@ -853,7 +853,12 @@ onMounted(() => refresh(false))
   padding: 16px;
   border: 1px solid var(--cpa-border);
   border-radius: var(--cpa-radius);
-  background: var(--cpa-surface-raised);
+  background: color-mix(in srgb, var(--cpa-glass-slot) 45%, transparent);
+}
+
+.settings-section :deep([data-slot='field-legend']) {
+  padding-inline: 6px;
+  background: transparent;
 }
 
 .extra-endpoints-field {
@@ -894,9 +899,10 @@ onMounted(() => refresh(false))
 .settings-switch {
   gap: 18px;
   padding: 14px;
-  border: 1px solid var(--cpa-border);
+  border: 1px solid var(--cpa-glass-border);
   border-radius: var(--cpa-radius);
-  background: var(--cpa-surface-muted);
+  background: var(--cpa-glass-control);
+  box-shadow: var(--cpa-glass-control-shadow);
 }
 
 .status-content {

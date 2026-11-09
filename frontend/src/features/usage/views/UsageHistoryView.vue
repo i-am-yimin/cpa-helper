@@ -1253,23 +1253,20 @@ onBeforeUnmount(() => {
 
     <UsageDashboardSkeleton v-if="!hasLoadedDashboard" />
     <template v-else>
-      <div class="metric-grid dashboard-metric-grid">
+      <dl class="metric-grid dashboard-metric-grid" :aria-label="t('用量概览', 'Usage overview')">
         <div
           v-for="metric in metricCards"
           :key="metric.key"
           class="metric-card dashboard-metric-card"
           :class="`is-${metric.tone}`"
         >
-          <div class="metric-icon" aria-hidden="true">
-            <component :is="metric.icon" :size="20" :stroke-width="2.2" />
-          </div>
-          <div class="metric-label">{{ metric.label }}</div>
-          <div class="metric-value">{{ metric.value }}</div>
-          <div class="metric-footnote usage-metric-footnote" :title="metric.footnote">
+          <dt class="metric-label">{{ metric.label }}</dt>
+          <dd class="metric-value">{{ metric.value }}</dd>
+          <dd class="metric-footnote usage-metric-footnote" :title="metric.footnote">
             {{ metric.footnote }}
-          </div>
+          </dd>
         </div>
-      </div>
+      </dl>
 
       <div class="dashboard-layout">
         <div class="dashboard-top-grid">
@@ -1773,19 +1770,59 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-metric-grid {
-  /* Keep the six usage metrics on one row where space allows. */
-  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--cpa-border);
+  border-radius: 24px;
+  background: var(--cpa-glass-panel);
+  border-color: var(--cpa-glass-border);
+  backdrop-filter: var(--cpa-glass-panel-filter);
+  box-shadow: var(--cpa-glass-panel-shadow);
 }
 
-.dashboard-metric-card {
-  min-height: 116px;
-  padding: 16px;
+.dashboard-metric-grid .dashboard-metric-card {
+  position: relative;
+  grid-template-areas: "label" "value" "footnote";
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-height: 128px;
+  padding: 20px 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboard-metric-card + .dashboard-metric-card::before {
+  position: absolute;
+  inset: 22px auto 22px 0;
+  width: 1px;
+  background: var(--cpa-border);
+  content: "";
+}
+
+.dashboard-metric-card .metric-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dashboard-metric-card dd {
+  margin: 0;
 }
 
 .dashboard-metric-card .metric-value {
-  font-size: 24px;
+  color: var(--cpa-text-strong);
+  font-size: clamp(22px, 2vw, 30px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
 }
+
+.dashboard-metric-card.is-primary .metric-value { color: var(--cpa-primary); }
+
 
 .usage-metric-footnote {
   min-width: 0;
@@ -1998,10 +2035,10 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 2px;
   min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--cpa-border);
+  padding: 8px 2px;
+  border: 0;
   border-radius: var(--cpa-radius-sm);
-  background: var(--cpa-surface-muted);
+  background: transparent;
 }
 
 .anomaly-stat span {
@@ -2166,15 +2203,15 @@ onBeforeUnmount(() => {
 
 .heatmap-group {
   display: grid;
-  grid-template-columns: minmax(70px, 84px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   min-width: 0;
   min-height: 0;
-  padding: 8px;
-  border: 1px solid color-mix(in srgb, var(--cpa-border) 72%, transparent);
+  padding: 10px 0;
+  border: 0;
   border-radius: var(--cpa-radius-sm);
-  background: color-mix(in srgb, var(--cpa-surface-muted) 72%, transparent);
+  background: transparent;
 }
 
 .heatmap-group.is-records {
@@ -2189,6 +2226,7 @@ onBeforeUnmount(() => {
 
 .heatmap-group-heading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 5px;
   align-content: center;
   min-width: 0;
@@ -2209,7 +2247,6 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   border-radius: 3px;
   background: var(--heat-color-end);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--heat-color-end) 14%, transparent);
   content: "";
 }
 
@@ -2265,7 +2302,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(180deg, var(--heat-color-start), var(--heat-color-end));
+  background: var(--heat-color-end);
   content: "";
   opacity: var(--heat-intensity);
 }
@@ -2289,9 +2326,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 43px;
   padding: 6px 8px;
-  border: 1px solid var(--cpa-border);
+  border: 1px solid var(--cpa-glass-border);
   border-radius: var(--cpa-radius-sm);
-  background: var(--cpa-surface-raised);
+  background: var(--cpa-glass-control);
+  box-shadow: var(--cpa-glass-control-shadow);
 }
 
 .ranking-index {
@@ -2313,14 +2351,15 @@ onBeforeUnmount(() => {
 }
 
 .ranking-label-line {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
   align-items: center;
   min-width: 0;
 }
 
 .ranking-label-line strong {
+  flex: 1 1 88px;
   min-width: 0;
   overflow: hidden;
   color: var(--cpa-text-strong);
@@ -2349,7 +2388,8 @@ onBeforeUnmount(() => {
   width: var(--ranking-width);
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--cpa-primary), var(--cpa-accent-blue));
+  background: var(--cpa-primary);
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ranking-values {
@@ -2447,26 +2487,30 @@ onBeforeUnmount(() => {
 }
 
 .token-legend {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 6px;
+  grid-template-columns: minmax(0, 1fr);
+  max-height: none;
+  gap: 4px;
+  overflow: visible;
+  scrollbar-gutter: auto;
 }
 
 .token-legend .distribution-legend-item {
   grid-template-columns: 8px minmax(0, 1fr) auto auto;
   gap: 5px;
-  padding: 3px 5px;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
 }
 
 .token-legend .distribution-marker {
   width: 7px;
   height: 7px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--distribution-color) 12%, transparent);
 }
 
 .token-legend .distribution-label,
 .token-legend .distribution-count,
 .token-legend .distribution-percent {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
 }
 
@@ -2550,6 +2594,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 980px) {
+  .dashboard-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dashboard-metric-card:nth-child(3n + 1)::before { display: none; }
   .dashboard-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
@@ -2685,9 +2731,13 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dashboard-metric-card {
+  .dashboard-metric-grid .dashboard-metric-card {
     min-height: 108px;
+    padding: 16px 14px;
   }
+
+  .dashboard-metric-card:nth-child(3n + 1)::before { display: block; }
+  .dashboard-metric-card:nth-child(2n + 1)::before { display: none; }
 
   .compact-panel-inner {
     padding: 12px;

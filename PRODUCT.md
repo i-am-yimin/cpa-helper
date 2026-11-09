@@ -14,7 +14,7 @@ Administrators manage CLIProxyAPI upstream connections, OAuth credentials, quota
 ## Confirmed requirements
 
 - One upstream management entry combines API Key upstreams and OAuth credentials, real counts, filters and directly editable priorities. Connection details, quota state and model-group priority form a readable working sequence.
-- Use the explicitly requested BoardUI visual system: neutral surfaces, local Inter, blue interactions, regular corners and contact shadows. Adapt the pinned, free MIT source to the existing Vue 3 / Reka UI / Tailwind 4 application and preserve existing behavior and permissions.
+- Use the requested Apple-inspired visual system across the site: cool neutral surfaces, system typography with local Inter fallback, blue interactions, regular rounded geometry, light/dark themes and purposeful animation. Preserve the existing Vue 3 / Reka UI / Tailwind 4 behavior and permissions. DESIGN.md records the implemented visual rules.
 - Antigravity model quota groups keep independent priorities and quota-aware routing, including Gemini and Claude / GPT groups. An account-level priority does not replace a group's own priority.
 - Show actual quota windows and locally collected request, token and cost statistics. Unknown data remains unknown.
 - Plugin loaded/idle status comes from the Core plugin registry. Heartbeat and recent activity are separate observations; lack of a recent heartbeat must not be presented as proof that a plugin is not loaded.

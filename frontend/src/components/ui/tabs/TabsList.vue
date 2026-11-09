@@ -3,7 +3,7 @@ import type { TabsListProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import type { TabsListVariants } from '.'
 import { reactiveOmit } from '@vueuse/core'
-import { TabsList } from 'reka-ui'
+import { TabsIndicator, TabsList } from 'reka-ui'
 import { cn } from '@/lib/utils'
 import { tabsListVariants } from '.'
 
@@ -24,6 +24,7 @@ const delegatedProps = reactiveOmit(props, 'class', 'variant')
     v-bind="delegatedProps"
     :class="cn(tabsListVariants({ variant }), props.class)"
   >
+    <TabsIndicator data-slot="tabs-indicator" aria-hidden="true" />
     <slot />
   </TabsList>
 </template>

@@ -8,17 +8,8 @@ defineProps<{
 
 <template>
   <main class="auth-screen">
-    <section class="auth-brand-panel" aria-hidden="true">
-      <div class="brand-stage">
-        <span class="brand-word brand-word-cpa">CPA</span>
-        <span class="brand-word brand-word-helper">HELPER</span>
-      </div>
-    </section>
-
     <section class="auth-content" :aria-label="sectionLabel">
-      <div class="brand-mark">
-        <img :src="logoUrl" alt="">
-      </div>
+      <div class="brand-mark"><img :src="logoUrl" alt=""></div>
       <slot />
     </section>
   </main>
@@ -27,144 +18,46 @@ defineProps<{
 <style scoped>
 .auth-screen {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr);
+  align-items: safe center;
+  justify-items: center;
   height: 100vh;
   height: 100dvh;
   min-height: 0;
   overflow: auto;
-  background: var(--background);
+  padding: 48px 24px;
+  background: var(--cpa-auth-light-band);
 }
-
-.auth-brand-panel {
-  position: relative;
-  display: grid;
-  min-height: 100%;
-  align-items: center;
-  overflow: hidden;
-  padding: 72px 48px;
-  background: var(--muted);
-}
-
-.auth-brand-panel::before {
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  inset: 24px;
-  content: "";
-}
-
-.brand-stage {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: min(620px, 100%);
-  gap: 8px;
-  align-content: center;
-  justify-self: center;
-  font-weight: 820;
-  line-height: 0.9;
-  text-transform: uppercase;
-}
-
-.brand-word {
-  display: block;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  letter-spacing: 0;
-}
-
-.brand-word-cpa {
-  justify-self: start;
-  color: var(--foreground);
-  font-size: 148px;
-}
-
-.brand-word-helper {
-  justify-self: end;
-  color: var(--foreground);
-  font-size: 116px;
-}
-
 .auth-content {
   display: grid;
+  width: min(460px, 100%);
   min-width: 0;
-  align-content: center;
   justify-items: center;
-  gap: 24px;
-  padding: 48px;
-  background: var(--card);
+  align-content: center;
+  gap: 26px;
+  padding: 40px 16px 24px;
+  border-radius: 30px;
+  border: 1px solid var(--cpa-glass-border);
+  background: var(--cpa-glass-floating);
+  -webkit-backdrop-filter: var(--cpa-glass-floating-filter);
+  backdrop-filter: var(--cpa-glass-floating-filter);
+  box-shadow: var(--cpa-glass-floating-shadow);
+  animation: auth-arrive 420ms var(--cpa-ease-out);
 }
-
-.brand-mark {
-  display: grid;
-  width: 68px;
-  height: 68px;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) * 1.6);
-  background: var(--card);
-  box-shadow: var(--cpa-shadow-soft);
-}
-
-.brand-mark img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-@media (max-width: 1320px) {
-  .brand-word-cpa {
-    font-size: 128px;
-  }
-
-  .brand-word-helper {
-    font-size: 102px;
-  }
-}
-
-@media (max-width: 1180px) {
-  .auth-screen {
-    grid-template-columns: minmax(360px, 0.9fr) minmax(390px, 1.1fr);
-  }
-
-  .brand-word-cpa {
-    font-size: 118px;
-  }
-
-  .brand-word-helper {
-    font-size: 94px;
-  }
-}
-
-@media (max-width: 900px) {
-  .auth-screen {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-brand-panel {
-    display: none;
-  }
-
-  .auth-content {
-    min-height: 100%;
-    align-content: start;
-    gap: 16px;
-    padding: max(28px, env(safe-area-inset-top)) 14px 20px;
-  }
-
-  .brand-mark {
-    width: 56px;
-    height: 56px;
-    border-radius: calc(var(--radius) * 1.4);
-  }
-}
-
+.brand-mark { display: grid; width: 68px; height: 68px; place-items: center; overflow: hidden; border-radius: 20px; background: var(--card); }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.auth-content :deep([data-slot="card"]) { gap: 28px; padding-top: 0; border: 0; border-radius: 0; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.auth-content :deep([data-slot="card-header"]) { gap: 10px; }
+.auth-content :deep(h1) { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.035em; line-height: 1.25; }
+.auth-content :deep([data-slot="card-description"]) { color: var(--muted-foreground); font-size: 14px; line-height: 1.65; }
+.auth-content :deep([data-slot="field-label"]) { font-size: 13px; }
+.auth-content :deep([data-slot="input"]), .auth-content :deep([data-slot="input-group"]) { min-height: 46px; background: var(--cpa-glass-slot); border-color: color-mix(in srgb, var(--input) 54%, transparent); box-shadow: inset 0 1px 3px rgb(0 0 0 / 5%), 0 1px 0 var(--cpa-glass-top); }
+.auth-content :deep([data-slot="input"]:focus-visible), .auth-content :deep([data-slot="input-group"]:focus-within) { border-color: var(--ring); }
+.auth-content :deep(button[type="submit"]) { min-height: 46px; margin-top: 4px; font-size: 15px; }
+@keyframes auth-arrive { from { opacity: .5; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 520px) {
-  .auth-content {
-    gap: 14px;
-  }
+  .auth-screen { place-items: start center; padding: max(40px, env(safe-area-inset-top)) 16px 24px; }
+  .auth-content { gap: 24px; padding: 32px 4px 20px; border-radius: 26px; }
+  .auth-content :deep(h1) { font-size: 26px; }
+  .brand-mark { width: 60px; height: 60px; border-radius: 18px; }
 }
 </style>

@@ -12,7 +12,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import {
   ArrowDownWideNarrow,
-  ChevronDown,
   ChevronRight,
   KeyRound,
   Plus,
@@ -568,9 +567,7 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
                     "
                     @click="toggleDetails(row.id)"
                   >
-                    <ChevronDown v-if="expanded.has(row.id)" /><ChevronRight
-                      v-else
-                    />
+                    <ChevronRight class="detail-chevron" :class="{ 'is-expanded': expanded.has(row.id) }" />
                   </Button>
                 </TableCell><TableCell>
                   <strong class="hub-row-name" :title="row.name">{{ row.name }}</strong><span class="hub-row-sub">{{
@@ -865,9 +862,9 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
   flex-wrap: wrap;
 }
 .hub-overview {
-  gap: 14px 30px;
+  gap: 14px 36px;
   font-size: 13px;
-  padding: 4px 2px;
+  padding: 8px 2px;
 }
 .hub-overview > span {
   display: inline-flex;
@@ -875,7 +872,9 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
   gap: 8px;
 }
 .hub-overview strong {
-  font-size: 23px;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 .scheduler-state {
@@ -895,7 +894,8 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
 .hub-search > svg {
   position: absolute;
   left: 10px;
-  top: 11px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 1;
   color: var(--muted-foreground);
 }
@@ -903,14 +903,22 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
   padding-left: 34px;
 }
 select {
-  min-height: 36px;
+  appearance: none;
+  min-height: 40px;
   padding: 6px 26px 6px 10px;
   border: 1px solid var(--input);
-  border-radius: 10px;
-  background: var(--card);
+  border-radius: 12px;
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23626c7d' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-position: right 10px center;
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
   color: var(--foreground);
   font-size: 13px;
   max-width: 100%;
+}
+:global(.dark) select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a2adbd' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
 }
 .hub-list :deep(.hub-table) {
   min-width: 940px;
@@ -956,7 +964,7 @@ select {
   font-variant-numeric: tabular-nums;
 }
 .hub-quota-track {
-  height: 5px;
+  height: 6px;
   margin-top: 8px;
   background: var(--muted);
   border-radius: 3px;
@@ -966,6 +974,7 @@ select {
   height: 100%;
   background: var(--cpa-success);
   border-radius: inherit;
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hub-quota-track .is-low {
   background: var(--destructive);
@@ -974,9 +983,16 @@ select {
   background: var(--muted);
 }
 .hub-detail {
-  padding: 4px 20px 12px;
+  padding: 16px 20px 20px;
   max-width: 1050px;
   white-space: normal;
+  animation: detail-reveal 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.detail-chevron { transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+.detail-chevron.is-expanded { transform: rotate(90deg); }
+@keyframes detail-reveal {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .hub-detail h2 {
   font-size: 16px;
@@ -1056,7 +1072,7 @@ select {
   .hub-list :deep(.hub-table thead) { display: none; }
   .hub-list :deep(.hub-table tbody) { display: block; }
   .hub-list :deep(.hub-table tr[data-upstream-row]) { display: grid; grid-template-columns: 32px minmax(0, 1fr) 48px; padding: 12px 4px; }
-  .hub-list :deep(.hub-table td) { min-width: 0; padding: 5px 8px; white-space: normal; }
+  .hub-list :deep(.hub-table td) { min-width: 0; height: auto; padding: 5px 8px; white-space: normal; }
   .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(1)) { grid-column: 1; grid-row: 1; }
   .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(2)) { grid-column: 2; grid-row: 1; }
   .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(3)) { grid-column: 2; grid-row: 2; }
@@ -1100,5 +1116,19 @@ select {
   .hub-overview {
     gap: 12px 20px;
   }
+}
+@container (min-width: 600px) and (max-width: 959px) {
+  .hub-list :deep(.hub-table tr[data-upstream-row]) {
+    grid-template-columns: 32px repeat(3, minmax(0, 1fr)) 48px;
+    gap: 12px 8px;
+    padding: 16px 12px;
+  }
+  .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(2)) { grid-column: 2 / 5; }
+  .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(3)) { grid-column: 2; grid-row: 2; align-self: start; }
+  .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(4)) { grid-column: 3; grid-row: 2; align-self: start; }
+  .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(5)) { grid-column: 4 / 6; grid-row: 2; align-self: start; }
+  .hub-list :deep(.hub-table tr[data-upstream-row] td:nth-child(6)) { grid-column: 5; }
+  .hub-priority { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .hub-priority .hub-mobile-label { flex-basis: 100%; }
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { isNavigationFailure, NavigationFailureType, useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
@@ -65,6 +65,31 @@ import RouteContentSkeleton from './RouteContentSkeleton.vue'
 const route = useRoute()
 const router = useRouter()
 const navigationTarget = ref<string | null>(null)
+const navigationRoot = ref<{ $el: HTMLElement } | null>(null)
+const navigationSelection = ref({ opacity: 0, transform: 'translate3d(0, 0, 0)', width: '0px', height: '0px' })
+let navigationObserver: ResizeObserver | undefined
+let navigationFrame: number | undefined
+
+function updateNavigationSelection() {
+  if (navigationFrame !== undefined) window.cancelAnimationFrame(navigationFrame)
+  navigationFrame = window.requestAnimationFrame(() => {
+    const root = navigationRoot.value?.$el
+    const active = root?.querySelector<HTMLElement>('[data-navigation][data-active="true"]')
+    if (!root || !active) {
+      navigationSelection.value.opacity = 0
+      return
+    }
+    const bounds = root.getBoundingClientRect()
+    const item = active.getBoundingClientRect()
+    navigationSelection.value = {
+      opacity: 1,
+      transform: `translate3d(${item.left - bounds.left}px, ${item.top - bounds.top + root.scrollTop}px, 0)`,
+      width: `${item.width}px`,
+      height: `${item.height}px`,
+    }
+  })
+}
+
 const isRouteTransitioning = ref(false)
 const { currentUser, setCurrentUser } = useCurrentUser()
 const hasLoadedUser = ref(currentUser.value !== null)
@@ -81,6 +106,8 @@ let navigationFeedbackTimer: number | undefined
 let routeTransitionReleaseTimer: number | undefined
 
 onBeforeUnmount(() => {
+  navigationObserver?.disconnect()
+  if (navigationFrame !== undefined) window.cancelAnimationFrame(navigationFrame)
   if (navigationFeedbackTimer !== undefined) {
     window.clearTimeout(navigationFeedbackTimer)
   }
@@ -212,6 +239,18 @@ const selectedKey = computed(() => {
   const matched = leafMenuOptions.value.find((item) => route.path.startsWith(String(item.key)))
   return matched ? String(matched.key) : route.path
 })
+
+watch([selectedKey, navigationRoot], async () => {
+  await nextTick()
+  navigationObserver?.disconnect()
+  const root = navigationRoot.value?.$el
+  if (root instanceof HTMLElement) {
+    navigationObserver = new ResizeObserver(updateNavigationSelection)
+    navigationObserver.observe(root)
+  }
+  updateNavigationSelection()
+}, { flush: 'post' })
+
 const currentNavigationLabel = computed(
   () => route.name === 'account-profile'
     ? t('个人资料', 'Profile')
@@ -316,7 +355,7 @@ const themeAriaLabel = computed(() => t('切换主题', 'Switch theme'))
 
 <template>
   <SidebarProvider class="app-shell" :default-open="true">
-    <Sidebar class="app-sidebar" collapsible="icon" variant="inset">
+    <Sidebar class="app-sidebar" collapsible="icon" variant="sidebar">
       <SidebarHeader class="sidebar-brand-header">
         <div class="sidebar-brand-button">
           <span class="brand-mark">
@@ -329,7 +368,8 @@ const themeAriaLabel = computed(() => t('切换主题', 'Switch theme'))
         </div>
       </SidebarHeader>
 
-      <SidebarContent class="sider-menu">
+      <SidebarContent ref="navigationRoot" class="sider-menu">
+        <span class="navigation-selection" :style="navigationSelection" aria-hidden="true" />
         <SidebarGroup v-if="isAdmin">
           <SidebarGroupLabel>{{ t('管理中心', 'Admin Center') }}</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -478,449 +518,88 @@ const themeAriaLabel = computed(() => t('切换主题', 'Switch theme'))
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  background: var(--sidebar);
-}
-
-.brand-mark {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border: 1px solid var(--cpa-border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--cpa-surface-solid);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
-}
-
-.brand-mark img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.brand-copy {
-  display: grid;
-  flex: 1 1 auto;
-  min-width: 0;
-  gap: 1px;
-  text-align: left;
-}
-
-.mobile-title-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-}
-
-.brand-copy strong {
-  color: var(--cpa-text-strong);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.brand-copy > span {
-  color: var(--cpa-text-muted);
-  font-size: 12px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  border: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-
-.app-main {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-  border: 0;
-  background: var(--cpa-canvas);
-  box-shadow: var(--cpa-shadow-shell);
-}
-
-.content {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--content-scrollbar-thumb) transparent;
-  --content-scrollbar-thumb: color-mix(in srgb, var(--cpa-text-muted) 44%, transparent);
-  --content-scrollbar-thumb-hover: color-mix(
-    in srgb,
-    var(--cpa-primary) 58%,
-    var(--cpa-text-muted)
-  );
-  background: var(--cpa-bg);
-}
-
-.content.is-route-pending {
-  cursor: progress;
-}
-
-.route-progress {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 2px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--cpa-primary) 12%, transparent);
-  pointer-events: none;
-}
-
-.route-progress::before {
-  display: block;
-  width: 38%;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--cpa-primary), var(--cpa-accent-blue));
-  animation: route-progress-slide 900ms ease-in-out infinite;
-  content: "";
-}
-
-.route-fade-enter-active,
-.route-fade-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.route-fade-enter-from,
-.route-fade-leave-to {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-@keyframes route-progress-slide {
-  0% {
-    transform: translateX(-120%);
-    opacity: 0.35;
-  }
-
-  50% {
-    opacity: 0.9;
-  }
-
-  100% {
-    transform: translateX(260%);
-    opacity: 0.35;
-  }
-}
-
-.mobile-brand {
-  display: inline-grid;
-  grid-template-columns: 28px minmax(0, auto);
-  gap: 7px;
-  align-items: center;
-  justify-self: center;
-  min-width: 0;
-  max-width: calc(100vw - 116px);
-}
-
-.mobile-brand-logo {
-  display: block;
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  object-fit: cover;
-}
-
-.mobile-brand-copy {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-  line-height: 1.1;
-}
-
-.mobile-brand-copy strong,
-.mobile-brand-copy span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mobile-title-row {
-  gap: 5px;
-}
-
-.mobile-brand-copy strong {
-  color: var(--cpa-text-strong);
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.mobile-brand-copy > span {
-  color: var(--cpa-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.sidebar-brand-header {
-  padding: 12px;
-  overflow: hidden;
-}
-
-:global([data-collapsible="icon"] [data-sidebar="header"].sidebar-brand-header) {
-  padding: 8px;
-  overflow: visible;
-}
-
-.sidebar-brand-button {
-  display: flex;
-  align-items: center;
-  height: 40px;
-  gap: 10px;
-  padding-inline: 6px;
-  overflow: hidden;
-  border-radius: var(--radius);
-}
-
-:global([data-collapsible="icon"] .sidebar-brand-button) {
-  justify-content: center;
-  padding-inline: 0;
-  overflow: visible;
-}
-
-:global([data-collapsible="icon"] .sidebar-brand-button .brand-copy) {
-  display: none;
-}
-
-.sidebar-user-footer {
-  padding: 12px;
-}
-
-.user-avatar {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  border: 0;
-  border-radius: 9999px;
-}
-
-.user-avatar::after {
-  position: absolute;
-  inset: 0;
-  border: 1px solid color-mix(in oklch, var(--cpa-border) 58%, transparent);
-  border-radius: inherit;
-  content: "";
-  pointer-events: none;
-}
-
-.user-copy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-  text-align: left;
-}
-
-.user-copy {
-  flex: 1 1 auto;
-}
-
-.user-copy strong,
-.user-copy span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-copy strong {
-  color: var(--cpa-text-strong);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.user-copy span {
-  color: var(--cpa-text-muted);
-  font-size: 12px;
-}
-
-.user-menu-chevron {
-  margin-left: auto;
-  color: var(--cpa-text-muted);
-}
-
-.user-dropdown {
-  width: var(--reka-dropdown-menu-trigger-width);
-  min-width: 176px;
-}
-
-.app-header {
-  display: grid;
-  grid-template-columns: auto 1px minmax(0, 1fr) auto;
-  flex: 0 0 56px;
-  align-items: center;
-  gap: 12px;
-  height: 56px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--cpa-border);
-  background: color-mix(in srgb, var(--cpa-canvas) 94%, transparent);
-  backdrop-filter: blur(12px);
-}
-
-.navigation-trigger {
-  margin-left: -4px;
-  width: 32px;
-  height: 32px;
-  color: var(--cpa-text-muted);
-}
-
-.header-divider {
-  align-self: center;
-  width: 1px;
-  height: 16px;
-  background: var(--cpa-border);
-}
-
-.header-divider[data-orientation="vertical"] {
-  height: 16px;
-}
-
-.desktop-location {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--cpa-text-strong);
-  font-size: 14px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.header-actions {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-}
-
-.header-actions button {
-  color: var(--cpa-text-muted);
-}
-
-.content {
-  display: flex;
-  flex-direction: column;
-}
-
-.content-scroll {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 28px 32px 36px;
-  scrollbar-gutter: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--content-scrollbar-thumb) transparent;
-  background: var(--cpa-canvas);
-}
-
-.content-scroll :deep(.page) {
-  width: 100%;
-  max-width: 1920px;
-  margin-inline: auto;
-}
-
-.content-scroll::-webkit-scrollbar {
-  width: 18px;
-  height: 18px;
-}
-
-.content-scroll::-webkit-scrollbar-track,
-.content-scroll::-webkit-scrollbar-corner {
   background: transparent;
 }
-
-.content-scroll::-webkit-scrollbar-thumb {
-  min-height: 56px;
-  border: 6px solid transparent;
-  border-radius: 999px;
-  background: var(--content-scrollbar-thumb);
-  background-clip: content-box;
+:deep([data-slot="sidebar-inner"]) {
+  background: var(--cpa-nav-glass);
+  -webkit-backdrop-filter: var(--cpa-glass-chrome-filter);
+  backdrop-filter: var(--cpa-glass-chrome-filter);
+  box-shadow: inset -1px 0 0 var(--cpa-glass-left), 8px 0 32px -24px rgb(29 58 102 / 28%);
 }
-
-.content-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--content-scrollbar-thumb-hover);
-  background-clip: content-box;
-}
-
-.content.is-route-pending .content-scroll,
-.content.is-route-transitioning .content-scroll {
-  overflow: hidden;
-}
-
-.content.is-records-scroll-mode .content-scroll {
-  scrollbar-gutter: auto;
-  scrollbar-width: none;
-}
-
-.content.is-records-scroll-mode .content-scroll::-webkit-scrollbar {
-  display: none;
-}
-
+:deep([data-slot="sidebar-container"]) { border-color: var(--sidebar-border); }
+.sidebar-brand-header { padding: 24px 18px 20px; }
+.sidebar-brand-button { display: flex; min-width: 0; align-items: center; gap: 11px; }
+.brand-mark { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; overflow: hidden; border-radius: 11px; background: var(--card); box-shadow: 0 2px 6px rgb(29 36 51 / 8%); }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.brand-copy { display: grid; min-width: 0; gap: 3px; text-align: left; }
+.brand-copy strong { color: var(--foreground); font-size: 17px; font-weight: 680; letter-spacing: -.035em; line-height: 1.25; }
+.brand-copy > span { color: var(--muted-foreground); font-size: 11px; line-height: 1.4; }
+.sider-menu { position: relative; isolation: isolate; padding: 0 8px; }
+.navigation-selection { position: absolute; top: 0; left: 0; z-index: 0; border-radius: 12px; background: linear-gradient(145deg, color-mix(in srgb, var(--sidebar-accent) 86%, transparent), color-mix(in srgb, var(--sidebar-accent) 62%, transparent)); box-shadow: inset 0 1px 0 var(--cpa-glass-top), 0 1px 3px var(--cpa-glass-edge); pointer-events: none; transition: transform 300ms var(--cpa-ease-spring), width 240ms var(--cpa-ease-spring), height 240ms var(--cpa-ease-spring), opacity 140ms ease; }
+.sider-menu :deep([data-sidebar="group"]) { padding: 0 0 14px; z-index: 1; }
+.sider-menu :deep([data-sidebar="group-label"]) { height: 32px; padding-inline: 12px; color: var(--muted-foreground); font-size: 11px; font-weight: 550; }
+.sider-menu :deep([data-sidebar="menu"]) { gap: 3px; }
+.sider-menu :deep([data-sidebar="menu-button"]) { height: 40px; padding-inline: 12px; gap: 11px; border-radius: 12px; color: var(--sidebar-foreground); font-size: 13px; font-weight: 500; transition: color 140ms ease, background-color 140ms ease, scale 180ms var(--cpa-ease-spring); }
+.sider-menu :deep([data-sidebar="menu-button"] svg) { width: 18px; height: 18px; stroke-width: 1.7; }
+.sider-menu :deep([data-sidebar="menu-button"]:active) { scale: .98; }
+.sider-menu :deep([data-sidebar="menu-button"][data-active="true"]) { background: transparent; color: var(--sidebar-accent-foreground); font-weight: 650; }
+.sider-menu :deep([data-sidebar="menu-button"]:hover:not([data-active="true"])) { background: color-mix(in srgb, var(--sidebar-foreground) 6%, transparent); }
+.sidebar-user-footer { padding: 12px; border-top: 1px solid var(--sidebar-border); }
+.user-menu-button { min-height: 56px; gap: 10px; padding: 8px; border-radius: 14px; }
+.user-avatar { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; }
+.user-copy { display: grid; min-width: 0; flex: 1; gap: 2px; text-align: left; }
+.user-copy strong, .user-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-copy strong { color: var(--foreground); font-size: 13px; font-weight: 600; }
+.user-copy span { color: var(--muted-foreground); font-size: 11px; }
+.user-menu-chevron { width: 16px; height: 16px; margin-left: auto; color: var(--muted-foreground); }
+.user-dropdown { width: var(--reka-dropdown-menu-trigger-width); min-width: 190px; }
+:global([data-collapsible="icon"] [data-sidebar="header"].sidebar-brand-header) { padding: 22px 6px; }
+:global([data-collapsible="icon"] .sidebar-brand-button) { justify-content: center; }
+:global([data-collapsible="icon"] .sidebar-brand-button .brand-copy) { display: none; }
+:global([data-collapsible="icon"] .sidebar-user-footer) { padding-inline: 8px; }
+.app-main { position: relative; display: flex; flex-direction: column; height: 100vh; height: 100dvh; min-height: 0; min-width: 0; overflow: hidden; border: 0; background: transparent; }
+.app-header { position: absolute; top: 0; left: 0; right: 0; z-index: 20; display: grid; grid-template-columns: auto 1px minmax(0, 1fr) auto; flex: 0 0 64px; align-items: center; gap: 16px; height: 64px; padding: 0 32px; border-bottom: 1px solid var(--cpa-glass-border); background: var(--cpa-header-glass); -webkit-backdrop-filter: var(--cpa-glass-chrome-filter); backdrop-filter: var(--cpa-glass-chrome-filter); box-shadow: inset 0 1px 0 var(--cpa-glass-top), 0 1px 0 var(--cpa-glass-edge), 0 8px 24px -20px rgb(29 58 102 / 24%); }
+.navigation-trigger { width: 36px; height: 36px; margin-left: -8px; color: var(--muted-foreground); border-radius: 10px; }
+.header-divider { align-self: center; width: 1px; height: 16px; background: var(--input); }
+.desktop-location { min-width: 0; overflow: hidden; color: var(--muted-foreground); font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.header-actions { display: inline-flex; align-items: center; gap: 5px; }
+.header-actions button { color: var(--muted-foreground); }
+.content { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; background: transparent; --content-scrollbar-thumb: color-mix(in srgb, var(--muted-foreground) 34%, transparent); }
+.content.is-route-pending { cursor: progress; }
+.content-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 92px 32px 36px; scroll-padding-top: 92px; scrollbar-width: thin; scrollbar-color: var(--content-scrollbar-thumb) transparent; background: transparent; }
+.content-scroll :deep(.page) { width: 100%; max-width: 1920px; margin-inline: auto; }
+.content-scroll::-webkit-scrollbar { width: 14px; height: 14px; }
+.content-scroll::-webkit-scrollbar-track, .content-scroll::-webkit-scrollbar-corner { background: transparent; }
+.content-scroll::-webkit-scrollbar-thumb { min-height: 48px; border: 4px solid transparent; border-radius: 999px; background: var(--content-scrollbar-thumb); background-clip: content-box; }
+.content.is-route-pending .content-scroll, .content.is-route-transitioning .content-scroll { overflow: hidden; }
+.content.is-records-scroll-mode .content-scroll { scrollbar-width: none; }
+.content.is-records-scroll-mode .content-scroll::-webkit-scrollbar { display: none; }
+.route-progress { position: absolute; z-index: 3; top: 64px; right: 0; left: 0; height: 2px; overflow: hidden; background: var(--accent); pointer-events: none; }
+.route-progress::before { display: block; width: 38%; height: 100%; border-radius: 999px; background: var(--primary); animation: route-progress-slide 900ms ease-in-out infinite; content: ''; }
+.route-fade-enter-active { transition: opacity 250ms var(--cpa-ease-out), transform 250ms var(--cpa-ease-out); }
+.route-fade-leave-active { transition: opacity 100ms ease, transform 100ms ease; }
+.route-fade-enter-from { opacity: 0; transform: translateY(8px); }
+.route-fade-leave-to { opacity: 0; transform: translateY(-3px); }
+@keyframes route-progress-slide { from { transform: translateX(-120%); } to { transform: translateX(360%); } }
+.mobile-brand { display: none; min-width: 0; align-items: center; gap: 9px; }
+.mobile-brand-logo { width: 30px; height: 30px; border-radius: 9px; }
+.mobile-brand-copy { display: grid; min-width: 0; gap: 2px; line-height: 1.15; }
+.mobile-title-row { display: flex; align-items: center; min-width: 0; gap: 5px; }
+.mobile-brand-copy strong, .mobile-brand-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-brand-copy strong { color: var(--foreground); font-size: 14px; font-weight: 650; }
+.mobile-brand-copy > span { color: var(--muted-foreground); font-size: 11px; }
 @media (max-width: 768px) {
-  .app-header {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    gap: 6px;
-    height: 58px;
-    padding: 0 10px;
-  }
-
-  .header-divider,
-  .desktop-location {
-    display: none;
-  }
-
-  .mobile-brand {
-    display: inline-grid;
-  }
-
-  .content-scroll {
-    padding: 14px 16px 18px;
-  }
+  .app-header { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; flex-basis: 64px; padding: 0 14px; }
+  .navigation-trigger { margin-left: -4px; width: 40px; height: 44px; }
+  .header-divider, .desktop-location { display: none; }
+  .mobile-brand { display: flex; }
+  .header-actions { gap: 0; }
+  .content-scroll { padding: 84px 16px 24px; scroll-padding-top: 84px; }
+  .sidebar-brand-header { padding-top: max(24px, env(safe-area-inset-top)); }
 }
-
-@media (min-width: 769px) {
-  .mobile-brand {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .route-progress::before {
-    animation: none;
-    opacity: 0.8;
-    transform: none;
-  }
-
-  .route-fade-enter-active,
-  .route-fade-leave-active {
-    transition: opacity 80ms ease;
-  }
-
-  .route-fade-enter-from,
-  .route-fade-leave-to {
-    opacity: 0;
-    transform: none;
-  }
+  .route-progress::before { animation: none; }
+  .route-fade-enter-active, .route-fade-leave-active { transition: opacity 80ms ease; }
+  .route-fade-enter-from, .route-fade-leave-to { transform: none; }
 }
 </style>

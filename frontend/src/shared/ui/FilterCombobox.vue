@@ -129,7 +129,7 @@ function updateValue(value: unknown) {
   border-color: var(--input);
   background: var(--card);
   font-weight: 400;
-  box-shadow: var(--cpa-shadow-card);
+  box-shadow: none;
 }
 
 .filter-combobox-trigger[aria-expanded='true'] {
