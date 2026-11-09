@@ -116,13 +116,20 @@ test('OIDC sign-in, forced redirect, local bypass, profile and logout work in th
     expect(me.cas_bound).toBe(false)
     expect(me.can_change_password).toBe(false)
     expect(me.is_admin).toBe(false)
-    // Exercise the same logout API/redirect followed by the sidebar.
-    const logout = await (await page.request.post('/api/auth/logout')).json()
-    expect(logout.logout_url).toContain(identityProvider.origin + '/logout')
-    expect(logout.cas_logout_url).toBeUndefined()
-    await page.goto(logout.logout_url)
+    const loginAttemptsBeforeLogout = identityProvider.authorizationPrompts.length
+    // Use the actual sidebar action, including clearing client-side identity.
+    await page.locator('.user-menu-button').click()
+    await page.getByRole('menuitem', { name: '退出登录', exact: true }).click()
     await expect(page).toHaveURL(/\/login\?skipsso=true$/)
     await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
+    expect((await page.request.get('/api/auth/me')).status()).toBe(401)
+    await page.reload()
+    await expect(page.getByLabel('账号', { exact: true })).toBeVisible()
+    expect(identityProvider.authorizationPrompts).toHaveLength(loginAttemptsBeforeLogout)
+    // Re-entering SSO requires the user's explicit click after logout.
+    await page.getByRole('link', { name: '使用 OIDC 登录' }).click()
+    await expect(page).toHaveURL(url => url.pathname === '/account/usage')
+    expect(identityProvider.authorizationPrompts).toHaveLength(loginAttemptsBeforeLogout + 1)
   } finally {
     await admin(page)
     expect((await page.request.put('/api/settings', { data: {
@@ -154,7 +161,8 @@ test('stale OIDC callbacks recover silently or show a reason before returning to
     expect((await page.request.get('/api/auth/me')).ok()).toBeTruthy()
 
     await page.goto('/oidc/callback?state=expired&code=expired-code')
-    await expect(page).toHaveURL(/\/account\/usage$/)
+    await expect(page).toHaveURL(url => url.pathname === '/account/usage')
+    await expect(page.locator('[data-page-title]')).toBeVisible()
     expect(identityProvider.authorizationPrompts).toEqual(['none'])
 
     identityProvider.setSilentError('login_required')

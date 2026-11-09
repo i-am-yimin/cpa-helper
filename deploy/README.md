@@ -56,8 +56,10 @@ later deployments preserve the current administrator and settings.
 ## CAS account-center integration
 
 Normal browser sign-in uses the existing `cas.nigulas.top` authentik service
-through native OIDC authorization-code + PKCE. There is no public CPA password
-sign-in page or password-login API. Model API requests continue using API keys.
+through native OIDC authorization-code + PKCE. Normal `/login` requests enter
+OIDC; `/login?skipsso=true` renders the login page after explicit logout without
+starting another authorization flow. The public password-login API stays
+blocked. Model API requests continue using API keys.
 
 The `CPA-Helper OIDC` provider has strict authorization/logout callbacks and its
 `AI Gateway` application is restricted to `infra-admin`. The explicitly selected
@@ -78,7 +80,13 @@ identity ownership or replacement of a different existing identity.
 The identity-binding regression tests run in production CI.
 
 Emergency password recovery requires an SSH tunnel to `127.0.0.1:18317` and
-`/login?skipsso=true`; it is not reachable through the public reverse proxy.
+`/login?skipsso=true`; password sign-in remains unavailable through the public reverse proxy.
+
+The matching site in the nginx-ui operations repository is applied by its
+existing infrastructure workflow, including backup, configuration validation,
+reload and rollback. CI runs this versioned site against a real nginx process, including
+logout refresh, ordinary OIDC redirects, the blocked password API and hidden
+management APIs.
 
 ## Operations
 
