@@ -2086,7 +2086,7 @@ func (a *App) executeKeeperRunWithOptions(ctx context.Context, options keeperRun
 	} else if len(targetSet) > 0 {
 		detail = fmt.Sprintf("凭证刷新完成：健康 %d，凭证异常 %d，恢复启用 %d，优先级降级 %d，优先级恢复 %d，网络错误 %d", stats.Healthy, stats.StatusDisabled, stats.StatusEnabled, stats.PriorityDegraded, stats.PriorityRestored, stats.NetworkError)
 	} else {
-		detail = fmt.Sprintf("巡检完成：健康 %d，坏凭证禁用 %d，恢复启用 %d，优先级降级 %d，网络错误 %d，缓存跳过 %d", stats.Healthy, stats.StatusDisabled, stats.StatusEnabled, stats.PriorityDegraded, stats.NetworkError, stats.Skipped)
+		detail = fmt.Sprintf("巡检完成：健康 %d，坏凭证禁用 %d，恢复启用 %d，优先级降级 %d，优先级恢复 %d，网络错误 %d，缓存跳过 %d", stats.Healthy, stats.StatusDisabled, stats.StatusEnabled, stats.PriorityDegraded, stats.PriorityRestored, stats.NetworkError, stats.Skipped)
 	}
 	if runID > 0 {
 		_ = a.finishKeeperRun(ctx, runID, "completed", detail, stats)
@@ -2880,8 +2880,26 @@ func (a *App) processKeeperAuthLocked(ctx context.Context, cfg AppConfig, authIn
 		return result
 	}
 	if quotaPolicy.Paused {
+		restored, err := a.restoreCodexQuota(ctx, cfg, name, quotaPolicy, merged, result.AccountType)
+		if err != nil {
+			message := "额度恢复同步失败：" + err.Error()
+			result.Result, result.LastError, result.LatestAction = "network_error", &message, &message
+			_ = a.upsertKeeperState(ctx, result)
+			logFn(name + ": " + message)
+			return result
+		}
+		if restored {
+			blocked := false
+			result.Priority, result.Disabled = keeperIntPtr(merged["priority"]), &blocked
+			message := fmt.Sprintf("额度恢复：已恢复优先级 %d 并启用路由", keeperEffectivePriority(result.Priority))
+			result.Result, result.LatestAction, result.ClearRestorePriority = "priority_restored", &message, true
+			result.LastError = nil
+			_ = a.upsertKeeperState(ctx, result)
+			logFn(name + ": " + message)
+			return result
+		}
 		low, blocked := -1, true
-		message := "额度触发暂停：" + quotaPolicy.Reason + "；需手动恢复"
+		message := "额度触发暂停：" + quotaPolicy.Reason + "；巡检确认额度恢复后自动恢复优先级与路由"
 		result.Result, result.Priority, result.Disabled, result.LatestAction = "priority_degraded", &low, &blocked, &message
 		_ = a.upsertKeeperState(ctx, result)
 		return result

@@ -279,7 +279,7 @@ function priorityHint(row: Row) {
   if (row.provider !== 'codex')
     return t('数值越大越优先', 'Higher numbers run first')
   const policy = row.account?.quota_policy
-  if (policy?.paused) return t('额度触发暂停 · 请设置恢复值并手动恢复', 'Paused by quota · Set a priority to resume manually')
+  if (policy?.paused) return t('额度触发暂停 · 额度恢复后自动恢复原优先级', 'Paused by quota · Previous priority is restored when quota recovers')
   if (policy?.manual_priority != null) return t(`手动优先级 ${policy.manual_priority}`, `Manual priority ${policy.manual_priority}`)
   const plan = row.account?.plan_type || row.account?.account_type
   const rule = rules.value.find((rule) => rule.account_type === plan)
@@ -291,7 +291,7 @@ function priorityHint(row: Row) {
     : t('手动设置后固定 · -1 为额度暂停', 'Manual values are retained · -1 means quota pause')
 }
 function quotaSummary(row: Row) {
-  if (row.account?.quota_policy?.paused) return { label: row.account.quota_policy.sync_state === 'paused' ? t('额度触发暂停', 'Paused by quota') : t('暂停待同步', 'Pause pending sync'), remaining: null }
+  if (row.account?.quota_policy?.paused) return { label: row.account.quota_policy.sync_state === 'paused' ? t('额度触发暂停', 'Paused by quota') : t('暂停待同步', 'Pause pending sync'), remaining: row.account.primary_used_percent == null ? null : Math.max(0, Math.min(100, 100 - row.account.primary_used_percent)) }
   if (row.disabled) return { label: t('已禁用', 'Disabled'), remaining: null }
   if (row.provider === 'antigravity') {
     const quota = quotas.value[row.account!.name]
@@ -832,8 +832,8 @@ watch(tab, (value, previous) => { if (value === 'all' && previous !== 'all') voi
       <p class="hub-footnote">
         {{
           t(
-            'Codex 命中低额度规则后保持暂停，需指定优先级手动恢复。Antigravity 的 Gemini、Claude / GPT 等分组分别按自身优先级与额度调度。',
-            'Codex quota pauses require an explicit priority and manual resume. Antigravity groups route using their independent priorities and quotas.',
+            'Codex 命中低额度规则后暂停；巡检确认额度恢复后自动恢复原优先级与路由，人工禁用保持不变。Antigravity 的 Gemini、Claude / GPT 等分组分别按自身优先级与额度调度。',
+            'Codex pauses at low quota. Inspection restores the previous priority and routing after quota recovers; manual disables are retained. Antigravity groups route using their independent priorities and quotas.',
           )
         }}
       </p>

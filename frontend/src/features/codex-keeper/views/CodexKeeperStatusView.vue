@@ -624,7 +624,7 @@ const priorityDialogHint = computed(() => {
     return t('手动优先级会保留；命中额度规则仍会禁用路由并置为 -1。', 'Manual priorities are retained. Quota rules can still disable routing and set -1.')
   }
   if (priorityDialog.mode === 'high') {
-    return t('命中额度规则后保持暂停，额度恢复不会自动恢复路由。', 'Quota pauses persist. Quota recovery does not automatically resume routing.')
+    return t('命中额度规则后暂停路由；巡检确认额度恢复后自动恢复原优先级与路由。', 'Quota rules pause routing. Inspection restores the previous priority and routing after confirming quota recovery.')
   }
   const account = priorityDialog.account
   const value = account ? defaultPriority(account) : null
@@ -1105,7 +1105,7 @@ function quotaWindowLabelForSeconds(seconds: number | null): string | null {
 }
 
 function shouldShowQuotaWindow(account: CodexKeeperAccount): boolean {
-  return isCodexCredential(account) && !account.disabled
+  return isCodexCredential(account) && (!account.disabled || account.quota_policy?.paused === true)
 }
 
 function quotaWindowItems(account: CodexKeeperAccount): QuotaWindowItem[] {

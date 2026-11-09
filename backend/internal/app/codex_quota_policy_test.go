@@ -21,6 +21,8 @@ type quotaGuardCPA struct {
 	used                      int
 	status                    int
 	failDisable, failPriority bool
+	failConfirmation          bool
+	usage                     map[string]any
 	writes                    []string
 }
 
@@ -33,11 +35,19 @@ func quotaGuardFixture(t *testing.T) (*App, AppConfig, *quotaGuardCPA) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/v0/management/auth-files":
+			if mock.failConfirmation && !keeperBool(mock.remote["disabled"]) {
+				http.Error(w, "confirmation unavailable", 503)
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"files": []map[string]any{mock.remote}})
 		case "/v0/management/auth-files/download":
 			_ = json.NewEncoder(w).Encode(mock.remote)
 		case "/v0/management/api-call":
-			_ = json.NewEncoder(w).Encode(map[string]any{"status_code": mock.status, "body": map[string]any{"plan_type": "plus", "rate_limit": map[string]any{"primary_window": map[string]any{"used_percent": mock.used, "limit_window_seconds": 18000, "reset_after_seconds": 3600}}}})
+			usage := mock.usage
+			if usage == nil {
+				usage = map[string]any{"plan_type": "plus", "rate_limit": map[string]any{"primary_window": map[string]any{"used_percent": mock.used, "limit_window_seconds": 18000, "reset_after_seconds": 3600}}}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"status_code": mock.status, "body": usage})
 		case "/v0/management/auth-files/status", "/v0/management/auth-files/fields":
 			var payload map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&payload)
@@ -85,7 +95,7 @@ func guardProcess(t *testing.T, a *App, cfg AppConfig) keeperAccountResult {
 	return a.processKeeperAuth(context.Background(), cfg, remote, func(string) {}, true)
 }
 
-func TestCodexQuotaLatchNeedsExplicitSafeResumeAndRetainsManualZero(t *testing.T) {
+func TestCodexQuotaRecoveryRestoresPreviousPriorityAndRetainsManualZero(t *testing.T) {
 	a, cfg, mock := quotaGuardFixture(t)
 	ctx := context.Background()
 	// Explicit guards enforce even if general inspection is in dry-run mode.
@@ -114,14 +124,6 @@ func TestCodexQuotaLatchNeedsExplicitSafeResumeAndRetainsManualZero(t *testing.T
 	if err := a.setCodexManualPriorityLocked(ctx, cfg, "guard.json", 99, true, remote); err == nil {
 		t.Fatal("resume bypassed active threshold")
 	}
-	mock.mu.Lock()
-	mock.used = 1
-	mock.mu.Unlock()
-	guardProcess(t, a, cfg)
-	state, _ = a.getCodexQuotaPolicy(ctx, "guard.json")
-	if !state.Paused {
-		t.Fatal("quota recovery automatically resumed")
-	}
 	// Simulate a process reload against the same persistent database.
 	reloaded, err := NewWithOptions(ctx, NewOptions{Migrate: true})
 	if err != nil {
@@ -132,15 +134,33 @@ func TestCodexQuotaLatchNeedsExplicitSafeResumeAndRetainsManualZero(t *testing.T
 	if !state.Paused {
 		t.Fatal("restart lost durable pause")
 	}
-	state.codexQuotaRule = codexQuotaRule{Mode: "off"}
-	if err := a.saveCodexQuotaPolicy(ctx, "guard.json", state); err != nil {
-		t.Fatal(err)
-	}
-	guardProcess(t, a, cfg)
+	mock.mu.Lock()
+	mock.used = 1
+	mock.writes = nil
+	mock.mu.Unlock()
+	result := guardProcess(t, a, cfg)
 	state, _ = a.getCodexQuotaPolicy(ctx, "guard.json")
-	if !state.Paused {
-		t.Fatal("cancelling thresholds automatically resumed")
+	if state.Paused || state.Reason != "" || state.Trigger != nil || state.PausedAt != nil || state.TriggerThreshold != nil || state.PreviousPriority != nil || state.SyncState != "synced" {
+		t.Fatalf("recovered quota retained stale pause: %#v", state)
 	}
+	if result.Result != "priority_restored" || result.Priority == nil || *result.Priority != 7 || result.Disabled == nil || *result.Disabled || result.LatestAction == nil || !strings.Contains(*result.LatestAction, "额度恢复") {
+		t.Fatalf("recovery did not restore priority and routing: %#v", result)
+	}
+	local, err := a.getKeeperState(ctx, "guard.json")
+	if err != nil || local.Disabled || local.Priority == nil || *local.Priority != 7 {
+		t.Fatalf("local quota state did not recover: %#v %v", local, err)
+	}
+	mock.mu.Lock()
+	if !reflect.DeepEqual(mock.writes, []string{"priority", "disabled:false"}) {
+		t.Fatalf("unsafe recovery write order: %v", mock.writes)
+	}
+	mock.mu.Unlock()
+	guardProcess(t, a, cfg)
+	mock.mu.Lock()
+	if keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != 7 {
+		t.Fatal("subsequent inspection overwrote restored priority")
+	}
+	mock.mu.Unlock()
 	remote, _ = a.codexRemoteItem(ctx, cfg, "guard.json")
 	if err := a.setCodexManualPriorityLocked(ctx, cfg, "guard.json", 0, true, remote); err != nil {
 		t.Fatal(err)
@@ -228,13 +248,13 @@ func TestCodexQuotaPauseKeepsMinusOneDuringBadCredentialAndRecovery(t *testing.T
 	mock.mu.Unlock()
 	guardProcess(t, a, cfg)
 	state, _ = a.getCodexQuotaPolicy(context.Background(), "guard.json")
-	if !state.Paused || state.CredentialBlocked {
-		t.Fatalf("health recovery changed quota latch: %#v", state)
+	if state.Paused || state.CredentialBlocked {
+		t.Fatalf("healthy quota recovery retained a pause: %#v", state)
 	}
 	mock.mu.Lock()
 	defer mock.mu.Unlock()
-	if !keeperBool(mock.remote["disabled"]) || keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != -1 {
-		t.Fatal("health recovery restored quota-paused routing")
+	if keeperBool(mock.remote["disabled"]) || keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != 7 {
+		t.Fatal("healthy quota recovery did not restore routing and priority")
 	}
 }
 
@@ -272,6 +292,191 @@ func TestCodexQuotaMaintenanceBypassesInspectionCacheAndDaemonSwitch(t *testing.
 	defer mock.mu.Unlock()
 	if !keeperBool(mock.remote["disabled"]) {
 		t.Fatal("quota guard depended on daemon or refresh cache")
+	}
+}
+
+func TestCodexQuotaMaintenanceAutomaticallyRecoversPausedAccounts(t *testing.T) {
+	a, _, mock := quotaGuardFixture(t)
+	ctx := context.Background()
+	if err := a.reconcileCodexQuotaPolicies(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mock.mu.Lock()
+	mock.used = 4
+	mock.mu.Unlock()
+	if err := a.reconcileCodexQuotaPolicies(ctx); err != nil {
+		t.Fatal(err)
+	}
+	state, err := a.getCodexQuotaPolicy(ctx, "guard.json")
+	if err != nil || state.Paused {
+		t.Fatalf("background inspection did not recover paused account: %#v %v", state, err)
+	}
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if keeperBool(mock.remote["disabled"]) || keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != 7 {
+		t.Fatal("background inspection failed to restore routing and priority")
+	}
+}
+
+func TestCodexQuotaAutomaticRecoveryRequiresAllValidWindows(t *testing.T) {
+	window := func(used int, seconds int) map[string]any {
+		return map[string]any{"used_percent": used, "limit_window_seconds": seconds, "reset_after_seconds": 3600}
+	}
+	expired := window(4, 18000)
+	expired["reset_at"] = time.Now().Add(-time.Minute).Unix()
+	for _, tc := range []struct {
+		name    string
+		primary map[string]any
+		weekly  map[string]any
+		status  int
+		manual  bool
+		restore bool
+	}{
+		{"both recovered", window(4, 18000), window(82, 604800), 200, false, true},
+		{"weekly still low", window(4, 18000), window(98, 604800), 200, false, false},
+		{"five hour boundary", window(90, 18000), window(82, 604800), 200, false, false},
+		{"weekly boundary", window(4, 18000), window(95, 604800), 200, false, false},
+		{"weekly missing", window(4, 18000), nil, 200, false, false},
+		{"primary missing", nil, window(82, 604800), 200, false, false},
+		{"expired primary", expired, window(82, 604800), 200, false, false},
+		{"unknown window", window(4, 3600), window(82, 604800), 200, false, false},
+		{"invalid usage", window(-1, 18000), window(82, 604800), 200, false, false},
+		{"usage failed", window(4, 18000), window(82, 604800), 503, false, false},
+		{"bad credential", window(4, 18000), window(82, 604800), 401, false, false},
+		{"manual disable", window(4, 18000), window(82, 604800), 200, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, cfg, mock := quotaGuardFixture(t)
+			guardProcess(t, a, cfg)
+			state, _ := a.getCodexQuotaPolicy(context.Background(), "guard.json")
+			state.WeekRemaining, state.ManualDisabled = quotaInt(5), tc.manual
+			if err := a.saveCodexQuotaPolicy(context.Background(), "guard.json", state); err != nil {
+				t.Fatal(err)
+			}
+			mock.mu.Lock()
+			mock.usage = map[string]any{"plan_type": "plus", "rate_limit": map[string]any{"primary_window": tc.primary, "secondary_window": tc.weekly}}
+			mock.status, mock.writes = tc.status, nil
+			mock.mu.Unlock()
+			guardProcess(t, a, cfg)
+			state, _ = a.getCodexQuotaPolicy(context.Background(), "guard.json")
+			if state.Paused == tc.restore {
+				t.Fatalf("unexpected recovery: %#v", state)
+			}
+			mock.mu.Lock()
+			defer mock.mu.Unlock()
+			if keeperBool(mock.remote["disabled"]) == tc.restore {
+				t.Fatalf("incorrect routing state: %v", mock.remote["disabled"])
+			}
+			if !tc.restore {
+				for _, write := range mock.writes {
+					if write == "disabled:false" {
+						t.Fatal("unsafe quota observation briefly enabled routing")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCodexQuotaAutomaticRecoveryPriorityAndRepeatPause(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		previous *int
+		manual   *int
+		want     int
+	}{
+		{"saved priority", quotaInt(7), nil, 7},
+		{"saved zero", quotaInt(0), nil, 0},
+		{"explicit zero", quotaInt(7), quotaInt(0), 0},
+		{"explicit high", quotaInt(7), quotaInt(99), 99},
+		{"missing old priority", nil, nil, 4},
+		{"old pause sentinel", quotaInt(-1), nil, 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, cfg, mock := quotaGuardFixture(t)
+			ctx := context.Background()
+			guardProcess(t, a, cfg)
+			state, _ := a.getCodexQuotaPolicy(ctx, "guard.json")
+			state.PreviousPriority, state.ManualPriority = tc.previous, tc.manual
+			if err := a.saveCodexQuotaPolicy(ctx, "guard.json", state); err != nil {
+				t.Fatal(err)
+			}
+			mock.mu.Lock()
+			mock.used = 4
+			mock.mu.Unlock()
+			guardProcess(t, a, cfg)
+			guardProcess(t, a, cfg)
+			mock.mu.Lock()
+			if keeperBool(mock.remote["disabled"]) || keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != tc.want {
+				t.Fatalf("restored priority: %v; want %d", mock.remote["priority"], tc.want)
+			}
+			mock.used = 90
+			mock.mu.Unlock()
+			guardProcess(t, a, cfg)
+			state, _ = a.getCodexQuotaPolicy(ctx, "guard.json")
+			if !state.Paused || state.PreviousPriority == nil || *state.PreviousPriority != tc.want {
+				t.Fatalf("repeat pause lost restore priority: %#v", state)
+			}
+		})
+	}
+}
+
+func TestCodexQuotaAutomaticRecoveryFailureRemainsPausedAndRetries(t *testing.T) {
+	for _, failure := range []string{"priority", "enable", "confirmation"} {
+		t.Run(failure, func(t *testing.T) {
+			a, cfg, mock := quotaGuardFixture(t)
+			ctx := context.Background()
+			guardProcess(t, a, cfg)
+			mock.mu.Lock()
+			mock.used, mock.writes = 4, nil
+			mock.failPriority, mock.failDisable, mock.failConfirmation = failure == "priority", failure == "enable", failure == "confirmation"
+			mock.mu.Unlock()
+			if result := guardProcess(t, a, cfg); result.Result != "network_error" {
+				t.Fatalf("unconfirmed recovery reported success: %#v", result)
+			}
+			state, _ := a.getCodexQuotaPolicy(ctx, "guard.json")
+			if !state.Paused || state.SyncState != "error" || state.SyncError == "" || state.PreviousPriority == nil || *state.PreviousPriority != 7 {
+				t.Fatalf("failed recovery lost durable pause or priority: %#v", state)
+			}
+			mock.mu.Lock()
+			if !keeperBool(mock.remote["disabled"]) || keeperEffectivePriority(keeperIntPtr(mock.remote["priority"])) != -1 {
+				t.Fatal("failed recovery left account eligible")
+			}
+			if failure == "priority" {
+				for _, write := range mock.writes {
+					if write == "disabled:false" {
+						t.Fatal("routing enabled before priority was confirmed")
+					}
+				}
+			}
+			mock.failPriority, mock.failDisable, mock.failConfirmation = false, false, false
+			mock.mu.Unlock()
+			if result := guardProcess(t, a, cfg); result.Result != "priority_restored" {
+				t.Fatalf("recovery retry failed: %#v", result)
+			}
+		})
+	}
+}
+
+func TestCodexQuotaDisabledRuleStillRequiresObservedRecovery(t *testing.T) {
+	a, cfg, mock := quotaGuardFixture(t)
+	guardProcess(t, a, cfg)
+	ctx := context.Background()
+	state, _ := a.getCodexQuotaPolicy(ctx, "guard.json")
+	state.Mode = "off"
+	if err := a.saveCodexQuotaPolicy(ctx, "guard.json", state); err != nil {
+		t.Fatal(err)
+	}
+	guardProcess(t, a, cfg)
+	state, _ = a.getCodexQuotaPolicy(ctx, "guard.json")
+	if !state.Paused {
+		t.Fatal("disabling rule resumed without observed quota recovery")
+	}
+	mock.mu.Lock()
+	mock.used = 4
+	mock.mu.Unlock()
+	if result := guardProcess(t, a, cfg); result.Result != "priority_restored" {
+		t.Fatalf("disabled rule prevented actual quota recovery: %#v", result)
 	}
 }
 

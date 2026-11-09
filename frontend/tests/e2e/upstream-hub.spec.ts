@@ -109,7 +109,7 @@ test('native API toggles preserve exclusions and show distinct credential identi
   await expect(third.getByRole('switch')).toBeChecked()
 })
 
-test('idle plugin stays loaded and Codex quota pauses require cancelling rules and explicit resume', async ({ page }) => {
+test('idle plugin stays loaded and manual Codex resume cannot bypass active quota rules', async ({ page }) => {
   const state = await fixture(page)
   const policy: CodexQuotaPolicy = { mode: 'custom', five_hour_remaining: 10, week_remaining: null, paused: true, reason: '5 小时剩余额度 8% ≤ 下限 10%', manual_disabled: false, credential_blocked: false, sync_state: 'paused', paused_at: new Date().toISOString(), version: 1 }
   const codex = state.accounts[0]!
@@ -143,6 +143,7 @@ test('idle plugin stays loaded and Codex quota pauses require cancelling rules a
   await row.getByRole('button', { name: '设置额度暂停规则' }).click()
   const editor = page.getByRole('region', { name: 'Codex 低额度暂停规则' })
   await expect(editor).toContainText('CPA 已确认停止路由')
+  await expect(editor).toContainText('自动恢复原优先级与路由')
   await editor.evaluate(el => { const scroll = el.closest('.content-scroll'); if (scroll) scroll.scrollTop += el.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 24 })
   await page.screenshot({ path: '../.impeccable/review/boardui-codex-pause.png', fullPage: true })
   await editor.getByRole('combobox', { name: '额度规则模式' }).click()
@@ -162,6 +163,27 @@ test('idle plugin stays loaded and Codex quota pauses require cancelling rules a
   await editor.evaluate(el => { const scroll = el.closest('.content-scroll'); if (scroll) scroll.scrollTop += el.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 24 })
   expect(await page.locator('.content-scroll').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
   await page.screenshot({ path: '../.impeccable/review/boardui-codex-mobile.png', fullPage: true })
+})
+
+test('quota pause shows current remaining quota and refreshes after automatic recovery', async ({ page }) => {
+  await page.clock.install()
+  const state = await fixture(page)
+  const policy: CodexQuotaPolicy = { mode: 'custom', five_hour_remaining: 10, week_remaining: 5, paused: true, reason: '5 小时剩余额度 0% ≤ 下限 10%', manual_disabled: false, credential_blocked: false, sync_state: 'paused', version: 1 }
+  const codex = state.accounts[0]!
+  Object.assign(codex, { quota_policy: policy, disabled: true, priority: -1, primary_used_percent: 4, secondary_used_percent: 82 })
+  await page.goto('/admin/upstreams')
+  const row = page.locator('[data-upstream-row="oauth:codex-team.json"]')
+  await expect(row).toContainText('96%')
+  await expect(row).toContainText('额度恢复后自动恢复原优先级')
+  await expect(row.getByRole('switch')).not.toBeChecked()
+  Object.assign(codex, { disabled: false, priority: 4, latest_action: '额度恢复：已恢复优先级 4 并启用路由' })
+  Object.assign(policy, { paused: false, reason: '', sync_state: 'synced' })
+  await page.clock.fastForward(61_000)
+  await expect(row.getByRole('switch')).toBeChecked()
+  await expect(row.getByRole('spinbutton')).toHaveValue('4')
+  await expect(row).toContainText('96%')
+  await expect(row).not.toContainText('额度触发暂停')
+  await expect(row).not.toContainText('0% ≤')
 })
 
 test('an inline draft blocks reloading and switching editors until saved or discarded', async ({ page }) => {

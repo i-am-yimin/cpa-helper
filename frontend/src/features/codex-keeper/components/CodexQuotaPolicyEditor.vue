@@ -49,7 +49,7 @@ async function save() {
   try {
     apply(await saveCodexQuotaPolicy(rule, props.name))
     emit('dirty', false)
-    toast.success(t('规则已保存；已有暂停需要手动恢复', 'Rules saved. Existing pauses require manual resume.'))
+    toast.success(t('规则已保存；巡检确认额度恢复后自动恢复优先级与路由', 'Rules saved. Inspection restores priority and routing once quota has recovered.'))
     emit('saved')
   } catch (e) { error.value = errorText(e, '保存失败，请重试', 'Save failed. Retry.') }
   finally { busy.value = false }
@@ -61,7 +61,7 @@ async function save() {
     <div class="quota-policy-heading">
       <div>
         <h2>{{ name ? t('此凭证的低额度暂停', 'Low quota pause for this credential') : t('Codex 低额度暂停', 'Codex low quota pause') }}</h2>
-        <p>{{ t('每 30 秒检查，任一窗口命中即禁用路由并置为 -1。额度恢复后仍需手动恢复。', 'Checked every 30 seconds. Either threshold disables routing and sets -1. Recovery requires manual resume.') }}</p>
+        <p>{{ t('每 30 秒检查，任一窗口命中即禁用路由并置为 -1。所有已配置窗口的额度恢复后，自动恢复原优先级与路由；人工禁用不受影响。', 'Checked every 30 seconds. Either threshold disables routing and sets -1. Once all configured windows recover, the previous priority and routing are restored. Manual disables are retained.') }}</p>
       </div>
       <Select v-if="ready" :model-value="mode" :disabled="busy || disabled" @update:model-value="mode = $event as CodexQuotaRule['mode']">
         <SelectTrigger class="quota-policy-mode" :aria-label="t('额度规则模式', 'Quota rule mode')"><SelectValue /></SelectTrigger>
@@ -89,10 +89,10 @@ async function save() {
     </p>
     <p v-if="state?.paused" class="quota-policy-paused" role="status">{{ t('额度触发暂停', 'Paused by quota') }} · {{ state.reason }}<br>{{ state.sync_state === 'paused' ? t('CPA 已确认停止路由', 'CPA confirmed routing is disabled') : t('暂停尚未确认，请检查同步状态', 'Pause not confirmed; check synchronization') }} · {{ formatDateTime(state.paused_at) }}</p>
     <p v-if="state?.sync_error" class="text-destructive" role="alert">{{ t('同步失败', 'Sync failed') }}：{{ state.sync_error }}</p>
-    <p v-if="state?.manual_disabled" class="quota-policy-hint">{{ t('此凭证另有人工禁用。先用列表中的启用开关解除人工禁用，再指定优先级恢复额度暂停。', 'This credential is also manually disabled. Clear manual disable with the list toggle, then set a priority to resume the quota pause.') }}</p>
+    <p v-if="state?.manual_disabled" class="quota-policy-hint">{{ t('此凭证另有人工禁用，不会自动启用。需先用列表中的启用开关解除人工禁用。', 'This credential is also manually disabled and will not be enabled automatically. Clear manual disable with the list toggle first.') }}</p>
     <p v-if="error" class="text-destructive" role="alert">{{ error }}</p>
     <div class="quota-policy-footer">
-      <span>{{ t('关闭阈值不会自动放行；请在列表中指定优先级并恢复。此规则会实际执行，不受巡检模拟模式影响。', 'Disabling thresholds does not resume routing. Set a priority and resume in the list. These rules apply even during inspection dry runs.') }}</span>
+      <span>{{ t('关闭阈值不会立即放行；下次巡检确认额度恢复后自动恢复，也可在列表中手动恢复。此规则会实际执行，不受巡检模拟模式影响。', 'Disabling thresholds does not immediately resume routing. The next inspection restores routing after confirming quota recovery; manual resume is also available in the list. These rules apply even during inspection dry runs.') }}</span>
       <div class="quota-policy-actions"><Button v-if="dirty" variant="ghost" :disabled="busy" @click="apply(state)">{{ t('放弃更改', 'Discard changes') }}</Button><Button v-if="ready" :disabled="busy || disabled || !dirty" @click="save">{{ busy ? t('保存中…', 'Saving…') : t('保存暂停规则', 'Save pause rules') }}</Button><Button v-else variant="outline" :disabled="busy" @click="load">{{ busy ? t('加载中…', 'Loading…') : t('重试', 'Retry') }}</Button></div>
     </div>
   </section>

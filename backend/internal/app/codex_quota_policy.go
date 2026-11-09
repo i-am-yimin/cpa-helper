@@ -249,6 +249,118 @@ func (a *App) observeCodexQuota(ctx context.Context, cfg AppConfig, name string,
 	return a.enforceCodexQuotaPause(ctx, cfg, name, state, remote)
 }
 
+// Recovery needs a fresh, safe observation for every configured window. When
+// rules have been disabled, still verify the window that caused the pause.
+func codexQuotaRecovered(rule codexQuotaRule, state *codexQuotaPolicy) bool {
+	if !codexQuotaRuleEnabled(rule) {
+		if state.Trigger == nil || state.TriggerThreshold == nil {
+			return false
+		}
+		rule = codexQuotaRule{Mode: "custom"}
+		switch state.Trigger.Window {
+		case "5h":
+			rule.FiveHourRemaining = state.TriggerThreshold
+		case "week":
+			rule.WeekRemaining = state.TriggerThreshold
+		default:
+			return false
+		}
+	}
+	if codexQuotaHit(rule, state.Observations) != "" {
+		return false
+	}
+	for _, window := range []struct {
+		name      string
+		threshold *int
+	}{{"5h", rule.FiveHourRemaining}, {"week", rule.WeekRemaining}} {
+		if window.threshold == nil {
+			continue
+		}
+		found := false
+		for _, observation := range state.Observations {
+			if observation.Window == window.name && observation.Remaining > *window.threshold && observation.Remaining <= 100 && (observation.ResetAt == nil || observation.ResetAt.After(time.Now())) {
+				found = true
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// Called only after a successful inspection, under the per-credential lock.
+// Manual priority edits perform their own explicit resume instead.
+func (a *App) restoreCodexQuota(ctx context.Context, cfg AppConfig, name string, state *codexQuotaPolicy, remote map[string]any, accountType *string) (bool, error) {
+	if !state.Paused || state.ManualDisabled || state.CredentialBlocked {
+		return false, nil
+	}
+	rule, err := a.effectiveCodexQuotaRule(ctx, state)
+	if err != nil || !codexQuotaRecovered(rule, state) {
+		return false, err
+	}
+	planPriority := keeperPriorityForType(accountType, cfg.CodexKeeperPriorityRule)
+	priority := state.ManualPriority
+	if priority == nil {
+		priority = state.PreviousPriority
+	}
+	if priority == nil || *priority == -1 {
+		priority = keeperDisplayPriority(planPriority)
+	}
+	if err := validateCodexManualPriority(*priority); err != nil {
+		return false, err
+	}
+	state.SyncState, state.SyncError = "recovering", ""
+	if err := a.saveCodexQuotaPolicy(ctx, name, state); err != nil {
+		return false, err
+	}
+	fail := func(err error) (bool, error) {
+		// Keep the durable pause until both the remote state and local commit
+		// are confirmed. Retry from a disabled account on the next inspection.
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		low := -1
+		err = errors.Join(err, a.setKeeperRemoteDisabled(rollbackCtx, cfg, name, true), a.setKeeperRemotePriority(rollbackCtx, cfg, name, &low))
+		return false, a.failCodexQuotaSync(rollbackCtx, name, state, err)
+	}
+	if err := a.setKeeperRemotePriority(ctx, cfg, name, priority); err != nil {
+		return fail(err)
+	}
+	confirmed, err := a.codexRemoteItem(ctx, cfg, name)
+	if err != nil {
+		return fail(err)
+	}
+	if keeperEffectivePriority(keeperIntPtr(confirmed["priority"])) != *priority || !keeperBool(confirmed["disabled"]) || !codexQuotaRecovered(rule, state) {
+		return fail(fmt.Errorf("尚未确认恢复优先级或有效额度"))
+	}
+	if err := a.setKeeperRemoteDisabled(ctx, cfg, name, false); err != nil {
+		return fail(err)
+	}
+	confirmed, err = a.codexRemoteItem(ctx, cfg, name)
+	if err != nil {
+		return fail(err)
+	}
+	if keeperBool(confirmed["disabled"]) || keeperEffectivePriority(keeperIntPtr(confirmed["priority"])) != *priority {
+		return fail(fmt.Errorf("CPA 尚未确认额度恢复后的优先级或路由状态"))
+	}
+	recovered := *state
+	recovered.Paused, recovered.PausedAt, recovered.Reason = false, nil, ""
+	recovered.Trigger, recovered.TriggerThreshold, recovered.PreviousPriority = nil, nil, nil
+	// Preserve pre-pause values set outside the panel, including zero, across
+	// later inspections rather than replacing them with a plan default.
+	if recovered.ManualPriority == nil && (planPriority == nil || *priority != *planPriority) {
+		recovered.ManualPriority = priority
+	}
+	now := time.Now()
+	recovered.SyncState, recovered.SyncError, recovered.SyncedAt = "synced", "", &now
+	if err := a.saveCodexQuotaPolicy(ctx, name, &recovered); err != nil {
+		return fail(err)
+	}
+	*state = recovered
+	remote["disabled"], remote["priority"] = false, *priority
+	return true, nil
+}
+
 func (a *App) freshCodexQuota(ctx context.Context, cfg AppConfig, name string, state *codexQuotaPolicy, remote map[string]any) error {
 	detail, err := a.getKeeperRemoteAuthFile(ctx, cfg, name)
 	if err != nil {
